@@ -168,8 +168,10 @@ def test_job_reports_file_without_audio(tmp_path):
     assert events[-1][0] == "finished"
 
 
-def test_power_helpers_are_safe_off_windows():
+def test_power_helpers():
+    import sys
     from transcriptor.power import KeepAwake, disable_background_throttling
-    assert disable_background_throttling() is False  # solo actúa en Windows
+    # En Windows la llamada debe aceptarse; en el resto no hace nada.
+    assert disable_background_throttling() is (sys.platform == "win32")
     with KeepAwake():
         pass
