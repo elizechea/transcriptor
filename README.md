@@ -71,8 +71,10 @@ la aplicación avisa y continúa con la CPU.
 
 Cada push compila el `.exe` en GitHub Actions (workflow *Build Windows exe*), lo
 prueba con una transcripción real y lo publica como artefacto
-**Transcriptor-windows**. Al crear una etiqueta `v*` (por ejemplo `v1.0.0`) el
-`.exe` se adjunta además a una *Release*.
+**Transcriptor-windows**. Para publicar una *Release* con el `.exe`, crea una
+etiqueta `v*` (por ejemplo `v1.0.0`) o lanza el workflow a mano (*Run workflow*)
+indicando la versión en el campo *release*: se crea la etiqueta y la release solo
+si el ejecutable supera el autotest.
 
 ## Compilar en local
 

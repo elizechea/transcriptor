@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Versión a publicar como release (p. ej. v1.0.0); vacío = solo compilar"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -50,7 +55,12 @@ jobs:
           if-no-files-found: error
 
       - name: Publicar release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release != '')
         uses: softprops/action-gh-release@v2
         with:
+          # Con workflow_dispatch la etiqueta se crea sobre el commit compilado.
+          tag_name: ${{ inputs.release || github.ref_name }}
+          name: Transcriptor ${{ inputs.release || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
           files: dist/Transcriptor.exe
