@@ -1,6 +1,7 @@
 # Transcriptor
 
-Aplicación de escritorio para Windows (un único `Transcriptor.exe`) que transcribe
+Aplicación de escritorio para **Windows** (un único `Transcriptor.exe`) y **macOS
+con chip Apple M1/M2/M3/M4…** (`Transcriptor.app`, macOS 13 Ventura o posterior) que transcribe
 audios y vídeos de cualquier tamaño con [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
 y guarda el resultado como Markdown en la carpeta **Descargas**.
 
@@ -8,18 +9,20 @@ Todo el proceso ocurre en el propio equipo: el audio no se envía a ningún serv
 
 ## Uso
 
-1. Abre `Transcriptor.exe` (no necesita instalación ni tener Python).
-2. Añade uno o varios archivos con **Añadir archivos…** o arrastrándolos a la ventana
-   (también carpetas completas).
+1. Abre `Transcriptor.exe` en Windows o `Transcriptor.app` en Mac (no necesita
+   instalación ni tener Python; ver [Instalar en Mac](#instalar-en-mac)).
+2. Añade uno o varios archivos con **Añadir archivos…** (en Windows también
+   arrastrándolos a la ventana, incluso carpetas completas).
 3. Elige el modelo, el idioma (o detección automática) y pulsa **Transcribir**.
 4. La barra muestra el porcentaje, la posición del audio, el tiempo transcurrido,
    el tiempo restante estimado y la velocidad; debajo se ve el texto a medida que se
    genera.
-5. Al terminar se crea `Descargas\<nombre> - transcripción.md` y puedes abrirlo
-   directamente.
+5. Al terminar se crea `<nombre> - transcripción.md` en la carpeta Descargas y
+   puedes abrirlo directamente.
 
 La primera vez que se usa un modelo se descarga desde Hugging Face (con barra de
-progreso) y se guarda en `%LOCALAPPDATA%\Transcriptor\models`; a partir de ahí
+progreso) y se guarda en `%LOCALAPPDATA%\Transcriptor\models` (Windows) o en
+`~/Library/Application Support/Transcriptor/models` (Mac); a partir de ahí
 funciona sin conexión.
 
 | Modelo | Descarga | Comentario |
@@ -61,20 +64,43 @@ hasta ese momento, con una nota indicando dónde se detuvo.
 
 Las marcas de tiempo por párrafo son opcionales.
 
-### GPU NVIDIA
+### Mac con chip M
+
+La versión de Mac es nativa para Apple Silicon (arm64). La transcripción se hace
+en la CPU con las librerías optimizadas de Apple (Accelerate); faster-whisper no
+usa la GPU del Mac. Como referencia, `small` o `large-v3-turbo` van bien en
+cualquier chip M.
+
+### Instalar en Mac
+
+1. Descarga `Transcriptor-macOS.dmg` de la *Release*, ábrelo y arrastra
+   **Transcriptor** a **Aplicaciones**.
+2. La app no está firmada con un certificado de Apple Developer, así que la primera
+   vez macOS la bloquea. Ábrela una vez, cierra el aviso y ve a
+   **Ajustes del Sistema → Privacidad y seguridad → «Abrir igualmente»**.
+   También puedes ejecutar en Terminal:
+   `xattr -dr com.apple.quarantine /Applications/Transcriptor.app`
+3. La primera vez que guarde una transcripción, macOS pedirá permiso para acceder
+   a la carpeta Descargas: acéptalo.
+
+### GPU NVIDIA (solo Windows)
 
 En *Procesar con* puedes elegir la GPU. Necesita tener instalados CUDA 12 y cuDNN 9
 (no se incluyen en el `.exe` para no multiplicar su tamaño). Si no están disponibles,
 la aplicación avisa y continúa con la CPU.
 
-## Descargar el ejecutable
+## Descargar
 
-Cada push compila el `.exe` en GitHub Actions (workflow *Build Windows exe*), lo
-prueba con una transcripción real y lo publica como artefacto
-**Transcriptor-windows**. Para publicar una *Release* con el `.exe`, crea una
-etiqueta `v*` (por ejemplo `v1.0.0`) o lanza el workflow a mano (*Run workflow*)
-indicando la versión en el campo *release*: se crea la etiqueta y la release solo
-si el ejecutable supera el autotest.
+Las versiones publicadas están en
+[Releases](https://github.com/elizechea/transcriptor/releases): `Transcriptor.exe`
+para Windows y `Transcriptor-macOS.dmg` para Mac.
+
+Cada push compila ambas en GitHub Actions (workflow *Build*), las prueba con una
+transcripción real y las publica como artefactos **Transcriptor-windows** y
+**Transcriptor-macOS**. Para publicar una *Release*, crea una etiqueta `v*`
+(por ejemplo `v1.1.0`) o lanza el workflow a mano (*Run workflow*) indicando la
+versión en el campo *release*: la etiqueta y la release solo se crean si las dos
+versiones superan el autotest.
 
 ## Compilar en local
 
@@ -84,14 +110,25 @@ En Windows con Python 3.12 de python.org:
 build.bat
 ```
 
-El resultado queda en `dist\Transcriptor.exe`. Para ejecutar desde el código fuente:
+El resultado queda en `dist\Transcriptor.exe`.
+
+En un Mac con chip M, con Python 3.12 de python.org:
+
+```bash
+./build_mac.sh
+```
+
+Genera `dist/Transcriptor.app` y `dist/Transcriptor-macOS.dmg`.
+
+Para ejecutar desde el código fuente:
 
 ```bat
 pip install -r requirements.txt
 python main.py
 ```
 
-Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model tiny] [--report informe.txt]`.
+Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model tiny] [--report informe.txt]`
+(en Mac: `Transcriptor.app/Contents/MacOS/Transcriptor --self-test …`).
 
 ## Estructura
 
@@ -101,6 +138,8 @@ Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model t
 - `transcriptor/audio.py` — decodificación en streaming y troceado por silencios (PyAV).
 - `transcriptor/markdown.py` — escritura incremental del `.md`.
 - `transcriptor/paths.py` — carpeta Descargas real de Windows, ajustes y registros.
-- `Transcriptor.spec` — configuración de PyInstaller (un solo archivo, sin consola).
+- `Transcriptor.spec` — configuración de PyInstaller (`.exe` de un solo archivo en
+  Windows, `.app` en macOS).
 
-Los registros de errores están en `%LOCALAPPDATA%\Transcriptor\transcriptor.log`.
+Los registros de errores están en `%LOCALAPPDATA%\Transcriptor\transcriptor.log`
+(Windows) o `~/Library/Application Support/Transcriptor/transcriptor.log` (Mac).

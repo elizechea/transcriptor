@@ -1,4 +1,4 @@
-"""Genera assets/icon.png e icon.ico (onda de audio sobre un documento)."""
+"""Genera assets/icon.png, icon.ico (Windows) e icon.icns (macOS) (onda de audio sobre un documento)."""
 
 from pathlib import Path
 
@@ -31,3 +31,4 @@ if __name__ == "__main__":
     img.save(HERE / "icon.png")
     img.save(HERE / "icon.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64),
                                        (128, 128), (256, 256)])
+    img.resize((1024, 1024), Image.LANCZOS).save(HERE / "icon.icns")

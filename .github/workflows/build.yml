@@ -1,0 +1,133 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Versión a publicar como release (p. ej. v1.1.0); vacío = solo compilar"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows (.exe)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+
+      - name: Tests
+        run: python -m pytest -q tests
+
+      - name: Compilar Transcriptor.exe
+        run: pyinstaller --noconfirm --clean Transcriptor.spec
+
+      - name: Probar el .exe (dependencias + transcripción con modelo tiny)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\Transcriptor.exe `
+                -ArgumentList "--self-test","--model","tiny","--report","selftest.txt" `
+                -Wait -PassThru
+          Get-Content selftest.txt
+          if ($p.ExitCode -ne 0) { throw "El autotest del ejecutable ha fallado ($($p.ExitCode))" }
+          "Tamaño: {0:N0} MB" -f ((Get-Item dist\Transcriptor.exe).Length / 1MB)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptor-windows
+          path: dist/Transcriptor.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS Apple Silicon (.dmg)
+    runs-on: macos-latest  # arm64 (chips M)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Comprobar arquitectura y Tk
+        run: |
+          uname -m
+          sw_vers
+          python -c "import platform, tkinter; print(platform.machine(), 'Tk', tkinter.TkVersion)"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-build.txt
+
+      - name: Tests
+        run: python -m pytest -q tests
+
+      - name: Compilar Transcriptor.app
+        run: |
+          pyinstaller --noconfirm --clean Transcriptor.spec
+          # Firma ad hoc de todo el paquete (obligatoria para ejecutar en arm64).
+          codesign --force --deep --sign - dist/Transcriptor.app
+          codesign --verify --deep --strict dist/Transcriptor.app
+          file dist/Transcriptor.app/Contents/MacOS/Transcriptor
+
+      - name: Probar la app (dependencias + transcripción con modelo tiny)
+        run: |
+          dist/Transcriptor.app/Contents/MacOS/Transcriptor \
+            --self-test --model tiny --report selftest.txt || { cat selftest.txt; exit 1; }
+          cat selftest.txt
+
+      - name: Crear Transcriptor-macOS.dmg
+        run: |
+          mkdir -p dmg
+          cp -R dist/Transcriptor.app dmg/
+          ln -s /Applications dmg/Aplicaciones
+          hdiutil create -volname Transcriptor -srcfolder dmg -ov -format UDZO \
+            dist/Transcriptor-macOS.dmg
+          du -h dist/Transcriptor-macOS.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptor-macOS
+          path: dist/Transcriptor-macOS.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publicar release
+    needs: [windows, macos]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release != '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          # Con workflow_dispatch la etiqueta se crea sobre el commit compilado.
+          tag_name: ${{ inputs.release || github.ref_name }}
+          name: Transcriptor ${{ inputs.release || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            artifacts/Transcriptor.exe
+            artifacts/Transcriptor-macOS.dmg

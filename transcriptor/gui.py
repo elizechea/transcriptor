@@ -20,6 +20,12 @@ from .paths import downloads_dir, load_settings, open_in_explorer, save_settings
 log = logging.getLogger(__name__)
 
 PREVIEW_MAX_LINES = 3000
+# Los puntos de Tk en macOS se ven más pequeños que en Windows.
+_FONT_SCALE = 1.3 if sys.platform == "darwin" else 1.0
+
+
+def _pt(size: int) -> int:
+    return round(size * _FONT_SCALE)
 
 
 def resource_path(name: str) -> Path:
@@ -67,22 +73,22 @@ class App:
 
     def _setup_style(self) -> None:
         style = ttk.Style(self.root)
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-        elif "clam" in style.theme_names():
-            style.theme_use("clam")
+        for theme in ("aqua", "vista", "clam"):  # nativo en macOS y Windows
+            if theme in style.theme_names():
+                style.theme_use(theme)
+                break
         family = "Segoe UI" if sys.platform == "win32" else tkfont.nametofont("TkDefaultFont").actual("family")
         for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont"):
-            tkfont.nametofont(name).configure(family=family, size=10)
+            tkfont.nametofont(name).configure(family=family, size=_pt(10))
         self.font_family = family
-        style.configure("Title.TLabel", font=(family, 20, "bold"), foreground="#1f4e79")
-        style.configure("Subtitle.TLabel", font=(family, 10), foreground="#555555")
-        style.configure("Section.TLabelframe.Label", font=(family, 11, "bold"),
+        style.configure("Title.TLabel", font=(family, _pt(20), "bold"), foreground="#1f4e79")
+        style.configure("Subtitle.TLabel", font=(family, _pt(10)), foreground="#555555")
+        style.configure("Section.TLabelframe.Label", font=(family, _pt(11), "bold"),
                         foreground="#1f4e79")
         style.configure("Hint.TLabel", foreground="#666666")
-        style.configure("Status.TLabel", font=(family, 10, "italic"), foreground="#444444")
-        style.configure("Big.TLabel", font=(family, 16, "bold"), foreground="#1f4e79")
-        style.configure("Primary.TButton", font=(family, 11, "bold"), padding=(18, 8))
+        style.configure("Status.TLabel", font=(family, _pt(10), "italic"), foreground="#444444")
+        style.configure("Big.TLabel", font=(family, _pt(16), "bold"), foreground="#1f4e79")
+        style.configure("Primary.TButton", font=(family, _pt(11), "bold"), padding=(18, 8))
         style.configure("TButton", padding=(10, 4))
         style.configure("Horizontal.TProgressbar", thickness=22)
 
@@ -111,7 +117,8 @@ class App:
         list_frame.columnconfigure(0, weight=1)
         self.listbox = tk.Listbox(list_frame, height=4, selectmode="extended",
                                   activestyle="none", borderwidth=1, relief="solid",
-                                  highlightthickness=0, font=(self.font_family, 10))
+                                  highlightthickness=0, font=(self.font_family, _pt(10)),
+                                  background="#ffffff", foreground="#222222")
         self.listbox.grid(row=0, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.listbox.yview)
         scroll.grid(row=0, column=1, sticky="ns")
@@ -175,7 +182,7 @@ class App:
         dest = ttk.Frame(main)
         dest.grid(row=3, column=0, sticky="ew", pady=(6, 4))
         ttk.Label(dest, text="📁 La transcripción (.md) se guardará en:").pack(side="left")
-        ttk.Label(dest, text=str(self.out_dir), font=(self.font_family, 10, "bold")).pack(
+        ttk.Label(dest, text=str(self.out_dir), font=(self.font_family, _pt(10), "bold")).pack(
             side="left", padx=6)
         ttk.Button(dest, text="Abrir carpeta",
                    command=lambda: open_in_explorer(self.out_dir)).pack(side="right")
@@ -209,11 +216,12 @@ class App:
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
         self.preview = tk.Text(text_frame, height=5, width=90, wrap="word", state="disabled",
-                               font=(self.font_family, 10), relief="solid", borderwidth=1,
-                               padx=8, pady=6, background="#fbfbfb")
+                               font=(self.font_family, _pt(10)), relief="solid", borderwidth=1,
+                               padx=8, pady=6, background="#fbfbfb",
+                               foreground="#222222")
         self.preview.grid(row=0, column=0, sticky="nsew")
         self.preview.tag_configure("ts", foreground="#1f4e79")
-        self.preview.tag_configure("info", foreground="#777777", font=(self.font_family, 9, "italic"))
+        self.preview.tag_configure("info", foreground="#777777", font=(self.font_family, _pt(9), "italic"))
         pscroll = ttk.Scrollbar(text_frame, orient="vertical", command=self.preview.yview)
         pscroll.grid(row=0, column=1, sticky="ns")
         self.preview.configure(yscrollcommand=pscroll.set)

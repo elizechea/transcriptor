@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -57,10 +58,14 @@ LANGUAGES = [
 ]
 LANGUAGE_NAMES = {code: name for code, name in LANGUAGES if code}
 
-DEVICES = [
-    ("cpu", "CPU (compatible con cualquier equipo)"),
-    ("cuda", "GPU NVIDIA (requiere CUDA 12 y cuDNN 9)"),
-]
+if sys.platform == "darwin":
+    # CTranslate2 no usa la GPU de Apple; en chips M la CPU va con Accelerate.
+    DEVICES = [("cpu", "CPU Apple Silicon (optimizado)")]
+else:
+    DEVICES = [
+        ("cpu", "CPU (compatible con cualquier equipo)"),
+        ("cuda", "GPU NVIDIA (requiere CUDA 12 y cuDNN 9)"),
+    ]
 
 
 class Cancelled(Exception):

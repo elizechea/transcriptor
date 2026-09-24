@@ -63,6 +63,8 @@ def app_data_dir() -> Path:
     """Carpeta para modelos, ajustes y registros (%LOCALAPPDATA%\\Transcriptor)."""
     if sys.platform == "win32":
         base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
     path = base / APP_NAME
@@ -118,6 +120,6 @@ def open_in_explorer(path: Path, select: bool = False) -> None:
         else:
             os.startfile(str(path))  # type: ignore[attr-defined]
     elif sys.platform == "darwin":
-        subprocess.Popen(["open", str(path)])
+        subprocess.Popen(["open", "-R", str(path)] if select else ["open", str(path)])
     else:
         subprocess.Popen(["xdg-open", str(path)])
