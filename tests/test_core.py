@@ -166,3 +166,10 @@ def test_job_reports_file_without_audio(tmp_path):
     errors = [d for k, d in events if k == "file_error"]
     assert errors and "roto.mp4" in str(errors[0]["path"])
     assert events[-1][0] == "finished"
+
+
+def test_power_helpers_are_safe_off_windows():
+    from transcriptor.power import KeepAwake, disable_background_throttling
+    assert disable_background_throttling() is False  # solo actúa en Windows
+    with KeepAwake():
+        pass

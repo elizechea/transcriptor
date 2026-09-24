@@ -56,6 +56,10 @@ def _enable_dpi_awareness() -> None:
 def main() -> int:
     multiprocessing.freeze_support()
     _setup_logging()
+    # Windows frena mucho los procesos en segundo plano (EcoQoS); se desactiva.
+    from transcriptor.power import disable_background_throttling
+
+    disable_background_throttling()
     if "--self-test" in sys.argv:
         from transcriptor.selftest import run_self_test
 

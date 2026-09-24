@@ -18,6 +18,7 @@ from typing import Callable
 from . import audio
 from .markdown import MarkdownWriter, format_timestamp
 from .paths import models_dir, output_path_for
+from .power import KeepAwake
 
 log = logging.getLogger(__name__)
 
@@ -177,6 +178,11 @@ class TranscriptionJob:
         self.cancel_event = cancel_event
 
     def run(self) -> None:
+        # Sin reposo del equipo ni App Nap mientras dure el trabajo.
+        with KeepAwake():
+            self._run()
+
+    def _run(self) -> None:
         try:
             model, device = load_model(self.options, self.emit, self.cancel_event)
             for index, path in enumerate(self.files):

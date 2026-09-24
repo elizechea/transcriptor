@@ -9,6 +9,7 @@ transcribe un audio sintético de principio a fin.
 
 from __future__ import annotations
 
+import sys
 import tempfile
 import threading
 import traceback
@@ -86,6 +87,15 @@ def run_self_test(argv: list[str]) -> int:
         check("VAD onnxruntime", vad)
         check("tkinter", tk)
         check("carpeta Descargas", downloads)
+
+        if sys.platform == "win32":
+            def throttling():
+                from transcriptor.power import disable_background_throttling
+                if not disable_background_throttling():
+                    raise RuntimeError("SetProcessInformation(ProcessPowerThrottling) falló")
+                return "EcoQoS desactivado para el proceso"
+
+            check("sin limitación en segundo plano", throttling)
 
         if model:
             def transcribe():

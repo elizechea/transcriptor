@@ -52,6 +52,8 @@ if IS_MAC:
             "LSMinimumSystemVersion": "13.0",
             "LSApplicationCategoryType": "public.app-category.productivity",
             "NSHighResolutionCapable": True,
+            # Sin App Nap: la transcripción no se frena con la ventana oculta.
+            "NSAppSleepDisabled": True,
             # La interfaz usa colores claros fijos: se evita el modo oscuro.
             "NSRequiresAquaSystemAppearance": True,
             "NSDownloadsFolderUsageDescription":

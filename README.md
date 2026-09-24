@@ -42,6 +42,15 @@ memoria usada no depende de la duración del archivo, y el `.md` se va escribien
 en disco párrafo a párrafo: si cancelas (o algo falla) se conserva lo transcrito
 hasta ese momento, con una nota indicando dónde se detuvo.
 
+### Rendimiento en segundo plano
+
+Windows 11 frena los programas cuya ventana no está activa (limitación de energía
+*EcoQoS*: menos frecuencia y núcleos de eficiencia), y macOS hace lo mismo con
+*App Nap*. Transcriptor desactiva ambos para su proceso, así que puedes dejar la
+ventana minimizada o seguir trabajando en otra cosa sin que la transcripción se
+ralentice. Mientras transcribe, el equipo tampoco entra en reposo por inactividad
+(la pantalla sí puede apagarse).
+
 ### Formato del Markdown
 
 ```markdown
@@ -138,6 +147,7 @@ Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model t
 - `transcriptor/audio.py` — decodificación en streaming y troceado por silencios (PyAV).
 - `transcriptor/markdown.py` — escritura incremental del `.md`.
 - `transcriptor/paths.py` — carpeta Descargas real de Windows, ajustes y registros.
+- `transcriptor/power.py` — evita la limitación en segundo plano y el reposo.
 - `Transcriptor.spec` — configuración de PyInstaller (`.exe` de un solo archivo en
   Windows, `.app` en macOS).
 
