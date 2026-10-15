@@ -68,6 +68,16 @@ def run_self_test(argv: list[str]) -> int:
             import ctranslate2
             return f"ctranslate2 {ctranslate2.__version__}, CUDA: {ctranslate2.get_cuda_device_count()}"
 
+        def mlx():
+            from transcriptor.mlx_backend import require_metal
+            try:
+                return f"GPU: {require_metal()}"
+            except RuntimeError as exc:
+                # Sin GPU (p. ej. máquina virtual) la app usa la CPU: no es un fallo.
+                if "Metal" not in str(exc):
+                    raise
+                return f"sin GPU, se usará la CPU ({exc})"
+
         def vad():
             from faster_whisper.vad import get_speech_timestamps
             from transcriptor.audio import iter_audio_chunks
@@ -84,6 +94,8 @@ def run_self_test(argv: list[str]) -> int:
 
         check("decodificación PyAV", decode)
         check("CTranslate2", ctranslate)
+        if sys.platform == "darwin":
+            check("MLX (GPU Apple Silicon)", mlx)
         check("VAD onnxruntime", vad)
         check("tkinter", tk)
         check("carpeta Descargas", downloads)
@@ -99,10 +111,10 @@ def run_self_test(argv: list[str]) -> int:
 
         if model:
             def transcribe():
-                from transcriptor.engine import Options, TranscriptionJob
+                from transcriptor.engine import DEFAULT_DEVICE, Options, TranscriptionJob
                 events = []
                 job = TranscriptionJob(
-                    [wav], Options(model=model, vad=False), tmp_path,
+                    [wav], Options(model=model, device=DEFAULT_DEVICE, vad=False), tmp_path,
                     lambda kind, **data: events.append((kind, data)), threading.Event())
                 job.run()
                 kinds = [k for k, _ in events]
@@ -110,7 +122,8 @@ def run_self_test(argv: list[str]) -> int:
                 if fails or "file_done" not in kinds:
                     raise RuntimeError(f"eventos: {kinds} errores: {fails}")
                 out = next(d["output"] for k, d in events if k == "file_done")
-                return f"{out.name} ({out.stat().st_size} bytes)"
+                warnings = [d["text"].splitlines()[0] for k, d in events if k == "warning"]
+                return f"{out.name} ({out.stat().st_size} bytes) {' '.join(warnings)}".strip()
 
             check(f"transcripción con modelo {model}", transcribe)
 

@@ -131,7 +131,7 @@ def run_job(tmp_path, wav, cancel_after=None, **opts):
 
 def test_job_writes_markdown_with_offsets(tmp_path, monkeypatch):
     monkeypatch.setattr(audio, "iter_audio_chunks",
-                        lambda p, cancel_event=None, _f=audio.iter_audio_chunks:
+                        lambda p, cancel_event=None, _f=audio.iter_audio_chunks, **_kw:
                         _f(p, chunk_seconds=4, search_seconds=1, cancel_event=cancel_event))
     wav = write_wav(tmp_path / "entrevista.wav", speech_like(9))
     model, events = run_job(tmp_path, wav, timestamps=False)

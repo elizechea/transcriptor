@@ -39,14 +39,14 @@ class MarkdownWriter:
         return self._file is not None
 
     def open(self, *, source: Path, duration: float | None, language: str,
-             model: str) -> None:
+             model: str, engine: str = "faster-whisper") -> None:
         self._file = open(self.path, "w", encoding="utf-8", newline="\n")
         rows = [
             ("Archivo", f"`{_md_escape_cell(source.name)}`"),
             ("Fecha", datetime.now().strftime("%d/%m/%Y %H:%M")),
             ("Duración", format_timestamp(duration) if duration else "desconocida"),
             ("Idioma", language),
-            ("Modelo", f"faster-whisper `{model}`"),
+            ("Modelo", f"{engine} `{model}`"),
         ]
         self._file.write(f"# Transcripción: {source.stem}\n\n")
         self._file.write("| | |\n|---|---|\n")

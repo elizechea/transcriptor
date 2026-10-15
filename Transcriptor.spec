@@ -4,7 +4,7 @@
 #   macOS   -> dist/Transcriptor.app (Apple Silicon)
 import sys
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 VERSION = "1.1.0"
 IS_MAC = sys.platform == "darwin"
@@ -12,14 +12,26 @@ IS_MAC = sys.platform == "darwin"
 datas = [("assets/icon.ico", "assets"), ("assets/icon.png", "assets")]
 datas += collect_data_files("faster_whisper")  # modelo VAD silero (.onnx)
 binaries = collect_dynamic_libs("ctranslate2") + collect_dynamic_libs("onnxruntime")
+if IS_MAC:
+    # MLX (GPU de Apple): libmlx.dylib, los kernels Metal (mlx.metallib) y los
+    # filtros mel y tokenizadores de mlx-whisper.
+    binaries += collect_dynamic_libs("mlx")
+    datas += collect_data_files("mlx", includes=["lib/*.metallib"])
+    datas += collect_data_files("mlx_whisper")
+    hiddenimports = collect_submodules("mlx")
+    # numba/llvmlite y scipy solo sirven para marcas por palabra (ver mlx_backend).
+    excludes = ["numba", "llvmlite", "scipy"]
+else:
+    hiddenimports = ["windnd"]
+    excludes = []
 
 a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=binaries,
     datas=datas,
-    hiddenimports=["transcriptor.selftest"] + ([] if IS_MAC else ["windnd"]),
-    excludes=["torch", "tensorflow", "matplotlib", "IPython", "pytest"],
+    hiddenimports=["transcriptor.selftest"] + hiddenimports,
+    excludes=["torch", "tensorflow", "matplotlib", "IPython", "pytest"] + excludes,
     noarchive=False,
 )
 pyz = PYZ(a.pure)

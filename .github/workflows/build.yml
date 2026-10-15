@@ -77,6 +77,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-build.txt
+          # MLX: rueda de macOS 14, válida en 14, 15 y 26 (ver build_mac.sh).
+          MLX=$(sed -n 's/^mlx==\([^;]*\).*/\1/p' requirements.txt)
+          pip download --quiet --only-binary=:all: --platform macosx_14_0_arm64 --no-deps \
+            -d build/mlx-wheels "mlx==$MLX" "mlx-metal==$MLX"
+          pip install --force-reinstall --no-deps build/mlx-wheels/*.whl
 
       - name: Tests
         run: python -m pytest -q tests

@@ -75,10 +75,19 @@ Las marcas de tiempo por párrafo son opcionales.
 
 ### Mac con chip M
 
-La versión de Mac es nativa para Apple Silicon (arm64). La transcripción se hace
-en la CPU con las librerías optimizadas de Apple (Accelerate); faster-whisper no
-usa la GPU del Mac. Como referencia, `small` o `large-v3-turbo` van bien en
-cualquier chip M.
+La versión de Mac es nativa para Apple Silicon (arm64). Por defecto transcribe en
+la **GPU** del chip M con [MLX](https://github.com/ml-explore/mlx) (mlx-whisper),
+ya que faster-whisper solo puede usar la CPU en Mac. En un M5 Pro, `large-v3-turbo`
+va unas 5 veces más rápido en la GPU que en la CPU, así que es la opción
+recomendada en cualquier chip M.
+
+- La GPU necesita **macOS 14 Sonoma** o posterior; en macOS 13 la app avisa y usa
+  la CPU. En *Procesar con* también se puede elegir la CPU a mano.
+- Los modelos MLX son distintos de los de CPU: el primer uso de cada modelo en la
+  GPU lo descarga de nuevo (mismo tamaño).
+- En la GPU el texto aparece en bloques de 5 minutos de audio (la barra de
+  progreso avanza de forma continua). Si cancelas, se conserva el texto de los
+  bloques ya terminados.
 
 ### Instalar en Mac
 

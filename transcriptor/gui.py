@@ -13,7 +13,7 @@ from tkinter import filedialog, font as tkfont, messagebox, ttk
 
 from . import APP_NAME, __version__
 from .audio import AUDIO_EXTENSIONS, MEDIA_EXTENSIONS, VIDEO_EXTENSIONS
-from .engine import DEVICES, LANGUAGES, MODELS, Options, TranscriptionJob
+from .engine import DEFAULT_DEVICE, DEVICES, LANGUAGES, MODELS, Options, TranscriptionJob
 from .markdown import format_timestamp
 from .paths import downloads_dir, load_settings, open_in_explorer, save_settings
 
@@ -150,7 +150,13 @@ class App:
         s = self.settings
         self.model_var = tk.StringVar(value=self._label_for(MODELS, s.get("model"), "small"))
         self.lang_var = tk.StringVar(value=self._label_for(LANGUAGES, s.get("language")))
-        self.device_var = tk.StringVar(value=self._label_for(DEVICES, s.get("device"), "cpu"))
+        # Un ajuste guardado cuando aún no existía la opción recomendada (p. ej. la
+        # GPU del Mac) no fue una elección: se propone la recomendada.
+        saved_device = (s.get("device")
+                        if DEFAULT_DEVICE in s.get("device_choices", [DEFAULT_DEVICE])
+                        else None)
+        self.device_var = tk.StringVar(
+            value=self._label_for(DEVICES, saved_device, DEFAULT_DEVICE))
         self.timestamps_var = tk.BooleanVar(value=s.get("timestamps", True))
         self.vad_var = tk.BooleanVar(value=s.get("vad", True))
 
@@ -350,7 +356,7 @@ class App:
         options = self._current_options()
         self.settings.update(model=options.model, language=options.language,
                              device=options.device, timestamps=options.timestamps,
-                             vad=options.vad)
+                             vad=options.vad, device_choices=[d[0] for d in DEVICES])
         save_settings(self.settings)
 
         self.outputs.clear()

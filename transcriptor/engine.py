@@ -17,6 +17,7 @@ from typing import Callable
 
 from . import audio
 from .markdown import MarkdownWriter, format_timestamp
+from .mlx_backend import MLX_REPOS, MlxWhisperModel, require_metal
 from .paths import models_dir, output_path_for
 from .power import KeepAwake
 
@@ -60,13 +61,19 @@ LANGUAGES = [
 LANGUAGE_NAMES = {code: name for code, name in LANGUAGES if code}
 
 if sys.platform == "darwin":
-    # CTranslate2 no usa la GPU de Apple; en chips M la CPU va con Accelerate.
-    DEVICES = [("cpu", "CPU Apple Silicon (optimizado)")]
+    # CTranslate2 no usa la GPU de Apple: la GPU se aprovecha con MLX.
+    DEVICES = [
+        ("mlx", "GPU Apple Silicon (Metal, recomendado)"),
+        ("cpu", "CPU Apple Silicon"),
+    ]
+    DEFAULT_DEVICE = "mlx"
 else:
     DEVICES = [
         ("cpu", "CPU (compatible con cualquier equipo)"),
         ("cuda", "GPU NVIDIA (requiere CUDA 12 y cuDNN 9)"),
     ]
+    DEFAULT_DEVICE = "cpu"
+GPU_NAMES = {"cuda": "GPU NVIDIA", "mlx": "GPU del Mac"}
 
 
 class Cancelled(Exception):
@@ -99,11 +106,15 @@ def _dir_size(path: Path) -> int:
     return total
 
 
-def ensure_model(name: str, emit: Emit, cancel_event: threading.Event) -> str:
+def ensure_model(name: str, emit: Emit, cancel_event: threading.Event,
+                 device: str = "cpu") -> str:
     """Devuelve la ruta local del modelo, descargándolo si hace falta."""
-    from faster_whisper.utils import download_model
-
-    repo = MODEL_REPOS.get(name, name)
+    if device == "mlx":
+        from huggingface_hub import snapshot_download as download_model
+        repo = MLX_REPOS.get(name, name)
+    else:
+        from faster_whisper.utils import download_model
+        repo = MODEL_REPOS.get(name, name)
     cache = models_dir()
     try:
         return download_model(repo, cache_dir=str(cache), local_files_only=True)
@@ -145,22 +156,41 @@ def load_model(options: Options, emit: Emit, cancel_event: threading.Event):
     if key in _model_cache:
         return _model_cache[key], options.device
 
-    path = ensure_model(options.model, emit, cancel_event)
-    emit("status", text=f"Cargando el modelo «{options.model}»…")
-    emit("download", done=0, total=0)  # barra indeterminada mientras carga
     device = options.device
     model = None
-    if device == "cuda":
+
+    def fall_back(exc: Exception) -> None:
+        log.warning("No se pudo usar la GPU: %s", exc)
+        emit("warning", text=(
+            f"No se pudo usar la {GPU_NAMES[device]}; se usará la CPU.\n\n"
+            f"Detalle: {exc}"
+        ))
+
+    if device == "mlx":
+        # Antes de descargar nada: MLX necesita macOS 14 o posterior y Metal.
         try:
-            model = WhisperModel(path, device="cuda", compute_type="float16")
+            require_metal()
         except Exception as exc:
-            log.warning("No se pudo usar la GPU: %s", exc)
-            emit("warning", text=(
-                "No se pudo usar la GPU NVIDIA; se usará la CPU.\n\n"
-                f"Detalle: {exc}"
-            ))
+            fall_back(exc)
+            device = "cpu"
+    if device in GPU_NAMES:
+        path = ensure_model(options.model, emit, cancel_event, device)
+        emit("status", text=f"Cargando el modelo «{options.model}»…")
+        emit("download", done=0, total=0)  # barra indeterminada mientras carga
+        try:
+            if device == "mlx":
+                model = MlxWhisperModel(path)
+            else:
+                model = WhisperModel(path, device="cuda", compute_type="float16")
+        except Exception as exc:
+            fall_back(exc)
             device = "cpu"
     if model is None:
+        if (options.model, device) in _model_cache:
+            return _model_cache[(options.model, device)], device
+        path = ensure_model(options.model, emit, cancel_event)
+        emit("status", text=f"Cargando el modelo «{options.model}»…")
+        emit("download", done=0, total=0)  # barra indeterminada mientras carga
         model = WhisperModel(
             path, device="cpu", compute_type="int8", cpu_threads=os.cpu_count() or 4
         )
@@ -194,12 +224,12 @@ class TranscriptionJob:
                 except Cancelled:
                     raise
                 except Exception as exc:
-                    if device == "cuda":
-                        # Errores de librerías CUDA suelen aparecer al transcribir.
+                    if device in GPU_NAMES:
+                        # Errores de librerías CUDA/Metal suelen aparecer al transcribir.
                         log.exception("Error en GPU, reintentando en CPU")
                         self.emit("warning", text=(
-                            "La GPU falló durante la transcripción; se reintenta "
-                            f"con la CPU.\n\nDetalle: {exc}"))
+                            f"La {GPU_NAMES[device]} falló durante la transcripción; "
+                            f"se reintenta con la CPU.\n\nDetalle: {exc}"))
                         self.options.device = device = "cpu"
                         model, device = load_model(self.options, self.emit,
                                                    self.cancel_event)
@@ -239,11 +269,22 @@ class TranscriptionJob:
         started = time.monotonic()
         position = 0.0
         note = None
+        # MLX entrega los segmentos al terminar cada bloque (mientras tanto solo
+        # informa del avance): con bloques más cortos el texto aparece antes.
+        batched = isinstance(model, MlxWhisperModel)
+        chunk_seconds = 5 * 60 if batched else 20 * 60
+        engine = "mlx-whisper" if batched else "faster-whisper"
         try:
             self.emit("status", text="Leyendo audio…")
-            for chunk in audio.iter_audio_chunks(path, cancel_event=self.cancel_event):
+            for chunk in audio.iter_audio_chunks(path, chunk_seconds=chunk_seconds,
+                                                 cancel_event=self.cancel_event):
                 self._check_cancel()
                 self.emit("status", text="Transcribiendo…")
+                extra = {}
+                if batched:
+                    extra["on_progress"] = (
+                        lambda seconds, offset=chunk.offset:
+                        self._decode_progress(offset + seconds, duration))
                 segments, info = model.transcribe(
                     chunk.samples,
                     language=language,
@@ -251,6 +292,7 @@ class TranscriptionJob:
                     beam_size=opts.beam_size,
                     vad_filter=opts.vad,
                     vad_parameters={"min_silence_duration_ms": 500},
+                    **extra,
                 )
                 if not writer.is_open:
                     if language is None:
@@ -262,7 +304,7 @@ class TranscriptionJob:
                     else:
                         label = LANGUAGE_NAMES.get(language, language)
                     writer.open(source=path, duration=duration, language=label,
-                                model=opts.model)
+                                model=opts.model, engine=engine)
                 for segment in segments:
                     self._check_cancel()
                     start = chunk.offset + segment.start
@@ -290,13 +332,17 @@ class TranscriptionJob:
         if not writer.is_open and not output.exists():
             # Ningún bloque decodificable (archivo vacío o de menos de 0,2 s).
             writer.open(source=path, duration=duration, language=language or "—",
-                        model=opts.model)
+                        model=opts.model, engine=engine)
             writer.close(note)
         return output
 
     def _check_cancel(self) -> None:
         if self.cancel_event.is_set():
             raise Cancelled()
+
+    def _decode_progress(self, position: float, duration: float | None) -> None:
+        self._check_cancel()  # interrumpe la decodificación de MLX
+        self._emit_progress(position, duration)
 
     def _emit_progress(self, position: float, duration: float | None) -> None:
         fraction = min(1.0, position / duration) if duration else None
