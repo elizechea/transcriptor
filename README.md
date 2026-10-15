@@ -7,10 +7,47 @@ y guarda el resultado como Markdown en la carpeta **Descargas**.
 
 Todo el proceso ocurre en el propio equipo: el audio no se envía a ningún servidor.
 
+## Primera ejecución: el sistema la bloquea
+
+La aplicación no está firmada con un certificado de pago de Apple ni de Microsoft,
+así que la primera vez el sistema la bloquea. Solo hay que autorizarla una vez.
+
+### Mac: «No se ha abierto "Transcriptor.app"»
+
+1. Descarga `Transcriptor-macOS.dmg` de la *Release*, ábrelo y arrastra
+   **Transcriptor** a **Aplicaciones**.
+2. Abre la app. Aparece el aviso *«Apple no ha podido verificar que
+   "Transcriptor.app" no contenga software malicioso»*: pulsa **OK / Hecho**
+   (**no** «Trasladar a la papelera»).
+3. Ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta la sección
+   **Seguridad** y pulsa **Abrir igualmente** junto al mensaje sobre Transcriptor.
+4. Vuelve a abrir la app, pulsa **Abrir igualmente** en el nuevo aviso y confirma
+   con tu contraseña o Touch ID.
+
+Alternativa en Terminal (hace lo mismo en un paso):
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Transcriptor.app
+```
+
+La primera vez que guarde una transcripción, macOS pedirá permiso para acceder a la
+carpeta Descargas: acéptalo.
+
+### Windows: «Windows protegió su PC»
+
+1. Al abrir `Transcriptor.exe` aparece la pantalla azul de **SmartScreen**.
+2. Pulsa **Más información** y después **Ejecutar de todas formas**.
+
+Si el navegador avisa al descargarlo de que «no se descarga habitualmente», elige
+**Conservar** (en Edge: menú **…** → **Conservar** → **Mostrar más** →
+**Conservar de todos modos**). Si Windows lo bloquea sin ofrecer *Ejecutar de todas
+formas*, haz clic derecho en el `.exe` → **Propiedades**, marca **Desbloquear**
+abajo del todo y pulsa **Aceptar**.
+
 ## Uso
 
 1. Abre `Transcriptor.exe` en Windows o `Transcriptor.app` en Mac (no necesita
-   instalación ni tener Python; ver [Instalar en Mac](#instalar-en-mac)).
+   instalación ni tener Python; ver [Primera ejecución](#primera-ejecución-el-sistema-la-bloquea)).
 2. Añade uno o varios archivos con **Añadir archivos…** (en Windows también
    arrastrándolos a la ventana, incluso carpetas completas).
 3. Elige el modelo, el idioma (o detección automática) y pulsa **Transcribir**.
@@ -88,18 +125,6 @@ recomendada en cualquier chip M.
 - En la GPU el texto aparece en bloques de 5 minutos de audio (la barra de
   progreso avanza de forma continua). Si cancelas, se conserva el texto de los
   bloques ya terminados.
-
-### Instalar en Mac
-
-1. Descarga `Transcriptor-macOS.dmg` de la *Release*, ábrelo y arrastra
-   **Transcriptor** a **Aplicaciones**.
-2. La app no está firmada con un certificado de Apple Developer, así que la primera
-   vez macOS la bloquea. Ábrela una vez, cierra el aviso y ve a
-   **Ajustes del Sistema → Privacidad y seguridad → «Abrir igualmente»**.
-   También puedes ejecutar en Terminal:
-   `xattr -dr com.apple.quarantine /Applications/Transcriptor.app`
-3. La primera vez que guarde una transcripción, macOS pedirá permiso para acceder
-   a la carpeta Descargas: acéptalo.
 
 ### GPU NVIDIA (solo Windows)
 
