@@ -6,7 +6,7 @@ import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 IS_MAC = sys.platform == "darwin"
 
 datas = [("assets/icon.ico", "assets"), ("assets/icon.png", "assets")]
