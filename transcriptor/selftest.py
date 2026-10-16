@@ -9,6 +9,7 @@ transcribe un audio sintético de principio a fin.
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import threading
@@ -86,6 +87,10 @@ def run_self_test(argv: list[str]) -> int:
 
         def tk():
             import tkinter
+            if sys.platform.startswith("linux") and os.environ.get("DISPLAY"):
+                # Abrir una ventana comprueba que Tcl/Tk encuentra sus archivos.
+                root = tkinter.Tk()
+                root.destroy()
             return f"Tk {tkinter.TkVersion}"
 
         def downloads():

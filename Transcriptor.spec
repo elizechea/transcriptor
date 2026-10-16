@@ -2,12 +2,14 @@
 # pyinstaller --noconfirm Transcriptor.spec
 #   Windows -> dist/Transcriptor.exe (un único archivo)
 #   macOS   -> dist/Transcriptor.app (Apple Silicon)
+#   Linux   -> dist/Transcriptor (un único archivo)
 import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 VERSION = "1.2.0"
 IS_MAC = sys.platform == "darwin"
+IS_WIN = sys.platform == "win32"
 
 datas = [("assets/icon.ico", "assets"), ("assets/icon.png", "assets")]
 datas += collect_data_files("faster_whisper")  # modelo VAD silero (.onnx)
@@ -22,7 +24,7 @@ if IS_MAC:
     # numba/llvmlite y scipy solo sirven para marcas por palabra (ver mlx_backend).
     excludes = ["numba", "llvmlite", "scipy"]
 else:
-    hiddenimports = ["windnd"]
+    hiddenimports = ["windnd"] if IS_WIN else []
     excludes = []
 
 a = Analysis(
@@ -88,10 +90,10 @@ else:
         a.datas,
         [],
         name="Transcriptor",
-        icon="assets/icon.ico",
+        icon="assets/icon.ico" if IS_WIN else None,
         console=False,
         upx=False,
         strip=False,
         debug=False,
-        version="version_info.txt",
+        version="version_info.txt" if IS_WIN else None,
     )

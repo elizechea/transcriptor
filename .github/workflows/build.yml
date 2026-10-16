@@ -115,9 +115,39 @@ jobs:
           path: dist/Transcriptor-macOS.dmg
           if-no-files-found: error
 
+  linux:
+    name: Linux x86_64 (.tar.gz)
+    # La distribución más antigua disponible: el ejecutable exige una glibc igual o
+    # más nueva que la de compilación (2.35).
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements*.txt
+
+      - name: Compilar Transcriptor (uv + tests + PyInstaller)
+        run: ./build_linux.sh
+
+      - name: Probar el ejecutable (dependencias + ventana Tk + transcripción con modelo tiny)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+          xvfb-run -a dist/Transcriptor --self-test --model tiny --report selftest.txt \
+            || { cat selftest.txt; exit 1; }
+          cat selftest.txt
+          du -h dist/Transcriptor-linux-x86_64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Transcriptor-linux
+          path: dist/Transcriptor-linux-x86_64.tar.gz
+          if-no-files-found: error
+
   release:
     name: Publicar release
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release != '')
     runs-on: ubuntu-latest
     steps:
@@ -136,3 +166,4 @@ jobs:
           files: |
             artifacts/Transcriptor.exe
             artifacts/Transcriptor-macOS.dmg
+            artifacts/Transcriptor-linux-x86_64.tar.gz

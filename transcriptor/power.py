@@ -6,7 +6,9 @@
   con SetProcessInformation(ProcessPowerThrottling).
 * macOS aplica "App Nap" a las apps ocultas. Se desactiva en Info.plist
   (NSAppSleepDisabled) y, mientras se transcribe, con `caffeinate`.
-* En ambos casos, durante la transcripción se impide que el equipo entre en
+* En Linux no hay limitación equivalente; durante la transcripción se pide a
+  systemd-logind que no suspenda el equipo (`systemd-inhibit`).
+* En todos los casos, durante la transcripción se impide que el equipo entre en
   reposo por inactividad (la pantalla sí puede apagarse).
 """
 
@@ -14,8 +16,12 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
+import signal
 import subprocess
 import sys
+
+from .paths import system_env
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +74,7 @@ class KeepAwake:
     """
 
     def __init__(self) -> None:
-        self._caffeinate: subprocess.Popen | None = None
+        self._helper: subprocess.Popen | None = None
 
     def __enter__(self) -> "KeepAwake":
         try:
@@ -78,9 +84,18 @@ class KeepAwake:
                     _ES_CONTINUOUS | _ES_SYSTEM_REQUIRED)
             elif sys.platform == "darwin":
                 # -i: sin reposo por inactividad; -w: termina si esta app muere.
-                self._caffeinate = subprocess.Popen(
+                self._helper = subprocess.Popen(
                     ["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif shutil.which("systemd-inhibit"):
+                # El bloqueo dura lo que el `tail`, que acaba si esta app muere.
+                # Va en su propio grupo de procesos para poder terminar ambos.
+                self._helper = subprocess.Popen(
+                    ["systemd-inhibit", "--what=idle:sleep", "--who=Transcriptor",
+                     "--why=Transcribiendo", "--mode=block",
+                     "tail", f"--pid={os.getpid()}", "-f", "/dev/null"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    env=system_env(), start_new_session=True)
         except Exception:
             log.info("No se pudo evitar el reposo del equipo", exc_info=True)
         return self
@@ -90,8 +105,12 @@ class KeepAwake:
             if sys.platform == "win32":
                 import ctypes
                 ctypes.windll.kernel32.SetThreadExecutionState(_ES_CONTINUOUS)
-            elif self._caffeinate is not None:
-                self._caffeinate.terminate()
-                self._caffeinate = None
+            elif self._helper is not None:
+                if sys.platform == "darwin":
+                    self._helper.terminate()
+                else:
+                    os.killpg(self._helper.pid, signal.SIGTERM)
+                self._helper.wait(timeout=5)
+                self._helper = None
         except Exception:
             log.info("No se pudo restaurar el estado de energía", exc_info=True)

@@ -1,7 +1,8 @@
 # Transcriptor
 
-Aplicación de escritorio para **Windows** (un único `Transcriptor.exe`) y **macOS
-con chip Apple M1/M2/M3/M4…** (`Transcriptor.app`, macOS 13 Ventura o posterior) que transcribe
+Aplicación de escritorio para **Windows** (un único `Transcriptor.exe`), **macOS
+con chip Apple M1/M2/M3/M4…** (`Transcriptor.app`, macOS 13 Ventura o posterior) y
+**Linux x86_64** (un único ejecutable `Transcriptor`) que transcribe
 audios y vídeos de cualquier tamaño con [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
 y guarda el resultado como Markdown en la carpeta **Descargas**.
 
@@ -44,9 +45,23 @@ Si el navegador avisa al descargarlo de que «no se descarga habitualmente», el
 formas*, haz clic derecho en el `.exe` → **Propiedades**, marca **Desbloquear**
 abajo del todo y pulsa **Aceptar**.
 
+### Linux
+
+No hay aviso, pero el archivo descargado no tiene permiso de ejecución. Descomprime el
+`.tar.gz` (conserva el permiso) y abre `Transcriptor`:
+
+```bash
+tar -xzf Transcriptor-linux-x86_64.tar.gz
+./Transcriptor
+```
+
+Necesita una distribución con glibc 2.35 o posterior (Ubuntu 22.04, Debian 12,
+Fedora 36 o más recientes).
+
 ## Uso
 
-1. Abre `Transcriptor.exe` en Windows o `Transcriptor.app` en Mac (no necesita
+1. Abre `Transcriptor.exe` en Windows, `Transcriptor.app` en Mac o `Transcriptor` en
+   Linux (no necesita
    instalación ni tener Python; ver [Primera ejecución](#primera-ejecución-el-sistema-la-bloquea)).
 2. Añade uno o varios archivos con **Añadir archivos…** (en Windows también
    arrastrándolos a la ventana, incluso carpetas completas).
@@ -58,8 +73,9 @@ abajo del todo y pulsa **Aceptar**.
    puedes abrirlo directamente.
 
 La primera vez que se usa un modelo se descarga desde Hugging Face (con barra de
-progreso) y se guarda en `%LOCALAPPDATA%\Transcriptor\models` (Windows) o en
-`~/Library/Application Support/Transcriptor/models` (Mac); a partir de ahí
+progreso) y se guarda en `%LOCALAPPDATA%\Transcriptor\models` (Windows),
+`~/Library/Application Support/Transcriptor/models` (Mac) o
+`~/.local/share/Transcriptor/models` (Linux); a partir de ahí
 funciona sin conexión.
 
 | Modelo | Descarga | Comentario |
@@ -86,7 +102,7 @@ Windows 11 frena los programas cuya ventana no está activa (limitación de ener
 *App Nap*. Transcriptor desactiva ambos para su proceso, así que puedes dejar la
 ventana minimizada o seguir trabajando en otra cosa sin que la transcripción se
 ralentice. Mientras transcribe, el equipo tampoco entra en reposo por inactividad
-(la pantalla sí puede apagarse).
+(la pantalla sí puede apagarse); en Linux esto se pide con `systemd-inhibit`.
 
 ### Formato del Markdown
 
@@ -126,23 +142,24 @@ recomendada en cualquier chip M.
   progreso avanza de forma continua). Si cancelas, se conserva el texto de los
   bloques ya terminados.
 
-### GPU NVIDIA (solo Windows)
+### GPU NVIDIA (Windows y Linux)
 
 En *Procesar con* puedes elegir la GPU. Necesita tener instalados CUDA 12 y cuDNN 9
-(no se incluyen en el `.exe` para no multiplicar su tamaño). Si no están disponibles,
+(no se incluyen en el ejecutable para no multiplicar su tamaño). Si no están disponibles,
 la aplicación avisa y continúa con la CPU.
 
 ## Descargar
 
 Las versiones publicadas están en
 [Releases](https://github.com/elizechea/transcriptor/releases): `Transcriptor.exe`
-para Windows y `Transcriptor-macOS.dmg` para Mac.
+para Windows, `Transcriptor-macOS.dmg` para Mac y `Transcriptor-linux-x86_64.tar.gz`
+para Linux.
 
-Cada push compila ambas en GitHub Actions (workflow *Build*), las prueba con una
-transcripción real y las publica como artefactos **Transcriptor-windows** y
-**Transcriptor-macOS**. Para publicar una *Release*, crea una etiqueta `v*`
+Cada push compila las tres en GitHub Actions (workflow *Build*), las prueba con una
+transcripción real y las publica como artefactos **Transcriptor-windows**,
+**Transcriptor-macOS** y **Transcriptor-linux**. Para publicar una *Release*, crea una etiqueta `v*`
 (por ejemplo `v1.1.0`) o lanza el workflow a mano (*Run workflow*) indicando la
-versión en el campo *release*: la etiqueta y la release solo se crean si las dos
+versión en el campo *release*: la etiqueta y la release solo se crean si las tres
 versiones superan el autotest.
 
 ## Compilar en local
@@ -163,6 +180,19 @@ En un Mac con chip M, con Python 3.12 de python.org:
 
 Genera `dist/Transcriptor.app` y `dist/Transcriptor-macOS.dmg`.
 
+En Linux, preferiblemente con [uv](https://docs.astral.sh/uv/) (descarga un
+Python 3.12 que ya incluye Tk; sin uv usa `python3.12` con `venv` y `python3-tk`
+del sistema):
+
+```bash
+./build_linux.sh
+```
+
+Genera `dist/Transcriptor` y `dist/Transcriptor-linux-<arquitectura>.tar.gz`. El
+ejecutable funciona en distribuciones con una glibc igual o más nueva que la del
+equipo donde se compila: para repartirlo, compila en una distribución antigua (la CI
+usa Ubuntu 22.04).
+
 Para ejecutar desde el código fuente:
 
 ```bat
@@ -171,7 +201,8 @@ python main.py
 ```
 
 Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model tiny] [--report informe.txt]`
-(en Mac: `Transcriptor.app/Contents/MacOS/Transcriptor --self-test …`).
+(en Mac: `Transcriptor.app/Contents/MacOS/Transcriptor --self-test …`; en Linux:
+`./Transcriptor --self-test …`, y con pantalla también abre una ventana Tk de prueba).
 
 ## Estructura
 
@@ -182,8 +213,9 @@ Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model t
 - `transcriptor/markdown.py` — escritura incremental del `.md`.
 - `transcriptor/paths.py` — carpeta Descargas real de Windows, ajustes y registros.
 - `transcriptor/power.py` — evita la limitación en segundo plano y el reposo.
-- `Transcriptor.spec` — configuración de PyInstaller (`.exe` de un solo archivo en
-  Windows, `.app` en macOS).
+- `Transcriptor.spec` — configuración de PyInstaller (un solo archivo en Windows y
+  Linux, `.app` en macOS).
 
 Los registros de errores están en `%LOCALAPPDATA%\Transcriptor\transcriptor.log`
-(Windows) o `~/Library/Application Support/Transcriptor/transcriptor.log` (Mac).
+(Windows), `~/Library/Application Support/Transcriptor/transcriptor.log` (Mac) o
+`~/.local/share/Transcriptor/transcriptor.log` (Linux).

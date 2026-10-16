@@ -39,6 +39,23 @@ def _windows_downloads() -> Path | None:
         ctypes.windll.ole32.CoTaskMemFree(path_ptr)
 
 
+def system_env() -> dict[str, str] | None:
+    """Entorno para lanzar programas del sistema desde el ejecutable de Linux.
+
+    PyInstaller apunta LD_LIBRARY_PATH a sus bibliotecas empaquetadas, que pueden
+    romper a xdg-open o systemd-inhibit; se restaura el valor original.
+    """
+    if not (sys.platform.startswith("linux") and getattr(sys, "frozen", False)):
+        return None
+    env = dict(os.environ)
+    original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if original is None:
+        env.pop("LD_LIBRARY_PATH", None)
+    else:
+        env["LD_LIBRARY_PATH"] = original
+    return env
+
+
 def downloads_dir() -> Path:
     """Devuelve la carpeta de Descargas del usuario (respetando si la ha movido)."""
     candidate: Path | None = None
@@ -47,7 +64,8 @@ def downloads_dir() -> Path:
             candidate = _windows_downloads()
         elif sys.platform.startswith("linux"):
             out = subprocess.run(
-                ["xdg-user-dir", "DOWNLOAD"], capture_output=True, text=True, timeout=2
+                ["xdg-user-dir", "DOWNLOAD"], capture_output=True, text=True, timeout=2,
+                env=system_env(),
             ).stdout.strip()
             if out and Path(out) != Path.home():
                 candidate = Path(out)
@@ -122,4 +140,4 @@ def open_in_explorer(path: Path, select: bool = False) -> None:
     elif sys.platform == "darwin":
         subprocess.Popen(["open", "-R", str(path)] if select else ["open", str(path)])
     else:
-        subprocess.Popen(["xdg-open", str(path)])
+        subprocess.Popen(["xdg-open", str(path)], env=system_env())
