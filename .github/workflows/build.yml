@@ -145,9 +145,29 @@ jobs:
           path: dist/Transcriptor-linux-x86_64.tar.gz
           if-no-files-found: error
 
+  fedora:
+    name: Probar en Fedora (ejecutable de Linux)
+    needs: linux
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Transcriptor-linux
+
+      - name: Probar el ejecutable (dependencias + ventana Tk + transcripción con modelo tiny)
+        run: |
+          cat /etc/fedora-release
+          dnf install -y -q xorg-x11-server-Xvfb
+          tar -xzf Transcriptor-linux-x86_64.tar.gz
+          Xvfb :99 & sleep 2
+          DISPLAY=:99 ./Transcriptor --self-test --model tiny --report selftest.txt \
+            || { cat selftest.txt; exit 1; }
+          cat selftest.txt
+
   release:
     name: Publicar release
-    needs: [windows, macos, linux]
+    needs: [windows, macos, linux, fedora]
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release != '')
     runs-on: ubuntu-latest
     steps:

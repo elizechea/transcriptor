@@ -55,8 +55,9 @@ tar -xzf Transcriptor-linux-x86_64.tar.gz
 ./Transcriptor
 ```
 
-Necesita una distribución con glibc 2.35 o posterior (Ubuntu 22.04, Debian 12,
-Fedora 36 o más recientes).
+Funciona en cualquier distribución con glibc 2.35 o posterior (Ubuntu 22.04,
+Debian 12, Fedora 36 o más recientes) sin instalar nada: incluye Python, Tk y el
+resto de dependencias. La CI lo prueba en Ubuntu 22.04 y en la última Fedora.
 
 ## Uso
 
