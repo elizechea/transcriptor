@@ -77,6 +77,9 @@ def test_output_path_is_unique_and_sanitized(tmp_path):
     assert first.name == "reunión_ equipo_ - transcripción.md"
     first.write_text("x")
     assert output_path_for(src, tmp_path).name == "reunión_ equipo_ - transcripción (2).md"
+    first.unlink()
+    first.with_suffix(".srt").write_text("x")  # un .srt suelto también ocupa el nombre
+    assert output_path_for(src, tmp_path).name == "reunión_ equipo_ - transcripción (2).md"
 
 
 def test_markdown_paragraphs(tmp_path):
@@ -93,6 +96,12 @@ def test_markdown_paragraphs(tmp_path):
     assert "| **Duración** | 01:01:40 |" in text
     assert "**[00:00:00]** Hola a todos. Empezamos.\n\n**[00:00:10]** Segundo párrafo." in text
     assert text.rstrip().endswith("_fin_")
+    assert out.with_suffix(".srt").read_text("utf-8") == (
+        "1\n00:00:00,000 --> 00:00:02,000\nHola a todos.\n\n"
+        "2\n00:00:02,100 --> 00:00:04,000\nEmpezamos.\n\n"
+        "3\n00:00:10,000 --> 00:00:12,000\nSegundo párrafo.\n\n")
+    assert out.with_suffix(".txt").read_text("utf-8") == (
+        "[00:00:00] Hola a todos.\n[00:00:02] Empezamos.\n[00:00:10] Segundo párrafo.\n")
 
 
 class FakeModel:

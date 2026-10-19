@@ -4,7 +4,7 @@ Aplicación de escritorio para **Windows** (un único `Transcriptor.exe`), **mac
 con chip Apple M1/M2/M3/M4…** (`Transcriptor.app`, macOS 13 Ventura o posterior) y
 **Linux x86_64** (un único ejecutable `Transcriptor`) que transcribe
 audios y vídeos de cualquier tamaño con [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
-y guarda el resultado como Markdown en la carpeta **Descargas**.
+y guarda el resultado como Markdown, subtítulos SRT y texto plano en la carpeta **Descargas**.
 
 Todo el proceso ocurre en el propio equipo: el audio no se envía a ningún servidor.
 
@@ -70,7 +70,8 @@ resto de dependencias. La CI lo prueba en Ubuntu 22.04 y en la última Fedora.
 4. La barra muestra el porcentaje, la posición del audio, el tiempo transcurrido,
    el tiempo restante estimado y la velocidad; debajo se ve el texto a medida que se
    genera.
-5. Al terminar se crea `<nombre> - transcripción.md` en la carpeta Descargas y
+5. Al terminar se crean `<nombre> - transcripción.md`, `.srt` (subtítulos) y `.txt`
+   (una línea por frase con su hora, como la vista previa) en la carpeta Descargas y
    puedes abrirlo directamente.
 
 La primera vez que se usa un modelo se descarga desde Hugging Face (con barra de
@@ -211,7 +212,7 @@ Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model t
 - `transcriptor/gui.py` — interfaz (tkinter).
 - `transcriptor/engine.py` — descarga/carga del modelo y transcripción en segundo plano.
 - `transcriptor/audio.py` — decodificación en streaming y troceado por silencios (PyAV).
-- `transcriptor/markdown.py` — escritura incremental del `.md`.
+- `transcriptor/markdown.py` — escritura incremental del `.md`, `.srt` y `.txt`.
 - `transcriptor/paths.py` — carpeta Descargas real de Windows, ajustes y registros.
 - `transcriptor/power.py` — evita la limitación en segundo plano y el reposo.
 - `Transcriptor.spec` — configuración de PyInstaller (un solo archivo en Windows y

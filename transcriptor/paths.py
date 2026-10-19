@@ -104,11 +104,14 @@ _INVALID_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def output_path_for(source: Path, out_dir: Path) -> Path:
-    """Nombre del .md de salida sin sobrescribir transcripciones anteriores."""
+    """Nombre del .md de salida sin sobrescribir transcripciones anteriores.
+
+    El .srt y el .txt comparten nombre, así que ninguno de los tres debe existir.
+    """
     stem = _INVALID_CHARS.sub("_", source.stem).strip(" .") or "transcripcion"
     target = out_dir / f"{stem} - transcripción.md"
     n = 2
-    while target.exists():
+    while any(target.with_suffix(ext).exists() for ext in (".md", ".srt", ".txt")):
         target = out_dir / f"{stem} - transcripción ({n}).md"
         n += 1
     return target

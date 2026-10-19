@@ -1,4 +1,7 @@
-"""Escritura incremental de la transcripción en Markdown.
+"""Escritura incremental de la transcripción en Markdown, SRT y TXT.
+
+Junto al .md se escriben, con el mismo nombre, unos subtítulos .srt y un .txt
+con una línea por segmento y su marca de tiempo (como la vista previa).
 
 Los párrafos se escriben en disco en cuanto se cierran, de modo que en
 archivos muy largos el resultado parcial no se pierde si algo falla.
@@ -20,6 +23,14 @@ def format_timestamp(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def format_srt_timestamp(seconds: float) -> str:
+    ms = max(0, round(seconds * 1000))
+    h, rem = divmod(ms, 3_600_000)
+    m, rem = divmod(rem, 60_000)
+    s, ms = divmod(rem, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
 def _md_escape_cell(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
@@ -29,6 +40,8 @@ class MarkdownWriter:
         self.path = path
         self.timestamps = timestamps
         self._file = None
+        self._srt = None
+        self._txt = None
         self._para_text: list[str] = []
         self._para_start = 0.0
         self._last_end: float | None = None
@@ -41,6 +54,8 @@ class MarkdownWriter:
     def open(self, *, source: Path, duration: float | None, language: str,
              model: str, engine: str = "faster-whisper") -> None:
         self._file = open(self.path, "w", encoding="utf-8", newline="\n")
+        self._srt = open(self.path.with_suffix(".srt"), "w", encoding="utf-8", newline="\n")
+        self._txt = open(self.path.with_suffix(".txt"), "w", encoding="utf-8", newline="\n")
         rows = [
             ("Archivo", f"`{_md_escape_cell(source.name)}`"),
             ("Fecha", datetime.now().strftime("%d/%m/%Y %H:%M")),
@@ -69,6 +84,11 @@ class MarkdownWriter:
         self._para_text.append(text)
         self._last_end = end
         self.segments_written += 1
+        self._srt.write(f"{self.segments_written}\n{format_srt_timestamp(start)} --> "
+                        f"{format_srt_timestamp(end)}\n{text}\n\n")
+        self._srt.flush()
+        self._txt.write(f"[{format_timestamp(start)}] {text}\n")
+        self._txt.flush()
 
     def _flush_paragraph(self) -> None:
         if not self._para_text or self._file is None:
@@ -88,5 +108,6 @@ class MarkdownWriter:
             self._file.write("_No se ha detectado voz en el archivo._\n\n")
         if note:
             self._file.write(f"---\n\n{note}\n")
-        self._file.close()
-        self._file = None
+        for f in (self._file, self._srt, self._txt):
+            f.close()
+        self._file = self._srt = self._txt = None

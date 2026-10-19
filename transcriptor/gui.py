@@ -187,7 +187,7 @@ class App:
 
         dest = ttk.Frame(main)
         dest.grid(row=3, column=0, sticky="ew", pady=(6, 4))
-        ttk.Label(dest, text="📁 La transcripción (.md) se guardará en:").pack(side="left")
+        ttk.Label(dest, text="📁 La transcripción (.md, .srt y .txt) se guardará en:").pack(side="left")
         ttk.Label(dest, text=str(self.out_dir), font=(self.font_family, _pt(10), "bold")).pack(
             side="left", padx=6)
         ttk.Button(dest, text="Abrir carpeta",
