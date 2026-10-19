@@ -168,6 +168,48 @@ def test_job_cancel_keeps_partial_text(tmp_path):
     assert "frase 2" in text and "cancelada" in text and "frase 5" not in text
 
 
+def source_in_subdir(tmp_path, name="entrevista.wav"):
+    src = tmp_path / "origen"
+    src.mkdir()
+    return write_wav(src / name, speech_like(8))
+
+
+def test_job_copies_srt_next_to_source(tmp_path):
+    wav = source_in_subdir(tmp_path)
+    _model, events = run_job(tmp_path, wav)
+    out = next(d["output"] for k, d in events if k == "file_done")
+    sidecar = wav.with_suffix(".srt")
+    assert sidecar.read_text("utf-8") == out.with_suffix(".srt").read_text("utf-8")
+    assert "frase 0" in sidecar.read_text("utf-8")
+
+
+def test_job_keeps_existing_srt_next_to_source(tmp_path):
+    wav = source_in_subdir(tmp_path)
+    wav.with_suffix(".srt").write_text("hecho a mano", "utf-8")
+    _model, events = run_job(tmp_path, wav)
+    assert "file_done" in [k for k, _ in events]
+    assert wav.with_suffix(".srt").read_text("utf-8") == "hecho a mano"
+
+
+def test_job_cancel_leaves_no_srt_next_to_source(tmp_path):
+    wav = source_in_subdir(tmp_path)
+    run_job(tmp_path, wav, cancel_after=3)
+    assert not wav.with_suffix(".srt").exists()
+
+
+def test_job_survives_unwritable_source_folder(tmp_path, monkeypatch):
+    wav = source_in_subdir(tmp_path)
+
+    def denied(*_a, **_kw):
+        raise PermissionError("solo lectura")
+
+    monkeypatch.setattr(engine.shutil, "copyfile", denied)
+    _model, events = run_job(tmp_path, wav)
+    kinds = [k for k, _ in events]
+    assert "file_done" in kinds and "file_error" not in kinds
+    assert not wav.with_suffix(".srt").exists()
+
+
 def test_job_reports_file_without_audio(tmp_path):
     bad = tmp_path / "roto.mp4"
     bad.write_bytes(b"esto no es un video")

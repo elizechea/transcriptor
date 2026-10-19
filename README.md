@@ -73,6 +73,10 @@ resto de dependencias. La CI lo prueba en Ubuntu 22.04 y en la última Fedora.
 5. Al terminar se crean `<nombre> - transcripción.md`, `.srt` (subtítulos) y `.txt`
    (una línea por frase con su hora, como la vista previa) en la carpeta Descargas y
    puedes abrirlo directamente.
+6. Además, el `.srt` se copia junto al archivo original con su mismo nombre
+   (`entrevista.mp4` → `entrevista.srt`), de modo que VLC, mpv y la mayoría de
+   reproductores lo cargan solos como subtítulos. Si ya existe un `.srt` con ese
+   nombre no se sobrescribe, y si la carpeta es de solo lectura se omite sin error.
 
 La primera vez que se usa un modelo se descarga desde Hugging Face (con barra de
 progreso) y se guarda en `%LOCALAPPDATA%\Transcriptor\models` (Windows),
