@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sys
 import threading
 import time
@@ -329,6 +330,8 @@ class TranscriptionJob:
             raise
         finally:
             writer.close(note)  # no hace nada si el archivo no llegó a abrirse
+        if writer.segments_written:
+            _copy_srt_next_to_source(output.with_suffix(".srt"), path)
         if not writer.is_open and not output.exists():
             # Ningún bloque decodificable (archivo vacío o de menos de 0,2 s).
             writer.open(source=path, duration=duration, language=language or "—",
@@ -347,6 +350,21 @@ class TranscriptionJob:
     def _emit_progress(self, position: float, duration: float | None) -> None:
         fraction = min(1.0, position / duration) if duration else None
         self.emit("progress", fraction=fraction, position=position, duration=duration)
+
+
+def _copy_srt_next_to_source(srt: Path, source: Path) -> None:
+    """Copia el .srt junto al original con su mismo nombre: los reproductores lo cargan solos.
+
+    Un .srt que ya exista (p. ej. hecho a mano) no se pisa, y una carpeta de solo
+    lectura no debe hacer fallar una transcripción ya terminada.
+    """
+    target = source.with_suffix(".srt")
+    if target.exists():
+        return
+    try:
+        shutil.copyfile(srt, target)
+    except OSError:
+        log.warning("No se pudo copiar el .srt junto a %s", source, exc_info=True)
 
 
 def _friendly(exc: Exception) -> str:
