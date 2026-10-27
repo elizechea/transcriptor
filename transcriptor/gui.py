@@ -11,7 +11,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
-from . import APP_NAME, __version__
+from . import APP_NAME, __version__, updater
 from .audio import AUDIO_EXTENSIONS, MEDIA_EXTENSIONS, VIDEO_EXTENSIONS
 from .engine import DEFAULT_DEVICE, DEVICES, LANGUAGES, MODELS, Options, TranscriptionJob
 from .markdown import format_timestamp
@@ -58,6 +58,8 @@ class App:
         extra = max(0, min(260, self.root.winfo_screenheight() - height - 120))
         self.root.geometry(f"{width}x{height + extra}")
         self.root.after(100, self._poll_events)
+        if updater.can_update():
+            threading.Thread(target=self._check_update, daemon=True).start()
 
     # ------------------------------------------------------------------ UI
     def _setup_window(self) -> None:
@@ -525,6 +527,65 @@ class App:
         question = "¿Quieres abrirla ahora?" if len(self.outputs) == 1 else "¿Abrir la carpeta?"
         if messagebox.askyesno(APP_NAME, f"{msg}\n\n{question}", parent=self.root):
             self._open_last()
+
+    # ------------------------------------------------------- actualización
+    def _check_update(self) -> None:
+        try:
+            updater.cleanup_old()
+            update = updater.check()
+        except Exception:
+            log.info("No se pudo comprobar si hay actualizaciones", exc_info=True)
+            return
+        if update:
+            self._emit("update_available", update=update)
+
+    def _on_update_available(self, update: dict) -> None:
+        if self.worker is not None:
+            return  # no se interrumpe una transcripción; se preguntará en el próximo arranque
+        size = f"{update['size'] / 1e6:,.0f} MB".replace(",", ".")
+        if not messagebox.askyesno(
+                APP_NAME, f"Hay una versión nueva de {APP_NAME}: {update['version']} "
+                f"(tienes la {__version__}).\n\n¿Quieres actualizar ahora? Se descargarán "
+                f"{size} y la aplicación se reiniciará.", parent=self.root):
+            return
+        self._set_running(True)
+        self.btn_cancel.configure(state="disabled")
+        self.lbl_status.configure(text=f"Descargando la versión {update['version']}…")
+        self.worker = threading.Thread(target=self._install_update, args=(update,), daemon=True)
+        self.worker.start()
+
+    def _install_update(self, update: dict) -> None:
+        try:
+            target = updater.install(update, lambda done, total: self._emit(
+                "download", done=done, total=total))
+        except Exception as exc:
+            log.exception("Error al actualizar")
+            self._emit("update_failed", message=str(exc) or type(exc).__name__)
+        else:
+            self._emit("update_ready", target=target)
+
+    def _on_update_ready(self, target: Path) -> None:
+        try:
+            updater.relaunch(target)
+        except Exception as exc:
+            log.exception("No se pudo reabrir la aplicación")
+            messagebox.showinfo(APP_NAME, "Actualización instalada. Vuelve a abrir "
+                                f"{APP_NAME} para usar la nueva versión.\n\n({exc})",
+                                parent=self.root)
+        save_settings(self.settings)
+        self.root.destroy()
+
+    def _on_update_failed(self, message: str) -> None:
+        self.worker = None
+        self.progress.configure(mode="determinate", value=0)
+        self.lbl_percent.configure(text="")
+        self.lbl_times.configure(text="")
+        self.lbl_status.configure(text="")
+        self._set_running(False)
+        if messagebox.askyesno(APP_NAME, f"No se pudo actualizar:\n\n{message}\n\n"
+                               "¿Abrir la página de descargas para hacerlo a mano?",
+                               parent=self.root):
+            updater.open_releases_page()
 
     # -------------------------------------------------------------- varios
     def _indeterminate(self) -> None:

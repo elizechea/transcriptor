@@ -103,7 +103,13 @@ def run_self_test(argv: list[str]) -> int:
             check("MLX (GPU Apple Silicon)", mlx)
         check("VAD onnxruntime", vad)
         check("tkinter", tk)
+        def updates():
+            import certifi
+            from transcriptor.updater import _SSL, asset_name
+            return f"{asset_name()}, {_SSL.cert_store_stats()['x509_ca']} certificados ({certifi.where()})"
+
         check("carpeta Descargas", downloads)
+        check("actualizaciones", updates)
 
         if sys.platform == "win32":
             def throttling():

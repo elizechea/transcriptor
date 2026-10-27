@@ -161,6 +161,15 @@ Las versiones publicadas están en
 para Windows, `Transcriptor-macOS.dmg` para Mac y `Transcriptor-linux-x86_64.tar.gz`
 para Linux.
 
+### Actualizaciones
+
+Al abrirse, la aplicación consulta la última release de GitHub. Si hay una versión
+más nueva, pregunta si quieres actualizar; si aceptas, descarga el archivo de tu
+sistema, comprueba su huella SHA-256, sustituye el programa y se reinicia. Sin
+conexión no hace nada. Si no se puede escribir en la carpeta del programa (por
+ejemplo, en Mac si la app no se ha movido a Aplicaciones), ofrece abrir la página de
+descargas para actualizar a mano.
+
 Cada push compila las tres en GitHub Actions (workflow *Build*), las prueba con una
 transcripción real y las publica como artefactos **Transcriptor-windows**,
 **Transcriptor-macOS** y **Transcriptor-linux**. Para publicar una *Release*, crea una etiqueta `v*`
@@ -218,6 +227,7 @@ Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model t
 - `transcriptor/audio.py` — decodificación en streaming y troceado por silencios (PyAV).
 - `transcriptor/markdown.py` — escritura incremental del `.md`, `.srt` y `.txt`.
 - `transcriptor/paths.py` — carpeta Descargas real de Windows, ajustes y registros.
+- `transcriptor/updater.py` — comprobación, descarga e instalación de nuevas versiones.
 - `transcriptor/power.py` — evita la limitación en segundo plano y el reposo.
 - `Transcriptor.spec` — configuración de PyInstaller (un solo archivo en Windows y
   Linux, `.app` en macOS).
