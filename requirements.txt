@@ -1,6 +1,8 @@
 faster-whisper==1.2.1
 # PyAV 19 eliminó av.open(metadata_errors=…), que usan faster-whisper y audio.py.
 av==18.1.0
+# Certificados HTTPS para buscar actualizaciones (updater.py).
+certifi==2026.07.22
 windnd==1.0.7; sys_platform == "win32"
 mlx==0.32.4; sys_platform == "darwin"
 mlx-whisper==0.4.3; sys_platform == "darwin"
