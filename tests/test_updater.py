@@ -1,5 +1,6 @@
 import hashlib
 import io
+import os
 import subprocess
 import sys
 import tarfile
@@ -70,7 +71,8 @@ def test_install_linux_extracts_executable(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(updater, "installed_path", lambda: target)
     updater.install(served(tmp_path, buf.getvalue()), lambda *_: None)
-    assert target.read_bytes() == b"nuevo" and target.stat().st_mode & 0o111
+    assert target.read_bytes() == b"nuevo"
+    assert os.name == "nt" or target.stat().st_mode & 0o111  # Windows no tiene permiso de ejecución
     assert sorted(p.name for p in target.parent.iterdir()) == ["Transcriptor"]
 
 
