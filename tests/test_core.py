@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from transcriptor import audio, engine
+from transcriptor import audio, diarization, engine
 from transcriptor.markdown import MarkdownWriter, format_timestamp
 from transcriptor.paths import output_path_for
 
@@ -102,6 +102,35 @@ def test_markdown_paragraphs(tmp_path):
         "3\n00:00:10,000 --> 00:00:12,000\nSegundo párrafo.\n\n")
     assert out.with_suffix(".txt").read_text("utf-8") == (
         "[00:00:00] Hola a todos.\n[00:00:02] Empezamos.\n[00:00:10] Segundo párrafo.\n")
+
+
+def test_markdown_speakers(tmp_path):
+    out = tmp_path / "t.md"
+    w = MarkdownWriter(out, timestamps=True)
+    w.open(source=Path("reunion.mp4"), duration=60, language="Español", model="small",
+           speakers="2 identificados")
+    w.add_segment(0.0, 2.0, "Hola.", speaker=1)
+    w.add_segment(2.1, 4.0, "¿Qué tal?", speaker=1)
+    w.add_segment(4.1, 6.0, "Bien.", speaker=2)  # sin pausa, pero otro hablante
+    w.add_segment(6.1, 7.0, "Sin asignar.")
+    w.close()
+    text = out.read_text("utf-8")
+    assert "| **Hablantes** | 2 identificados |" in text
+    assert ("**[00:00:00]** **Hablante 1:** Hola. ¿Qué tal?\n\n"
+            "**[00:00:04]** **Hablante 2:** Bien.\n\n**[00:00:06]** Sin asignar.") in text
+    assert "00:00:04,100 --> 00:00:06,000\nHablante 2: Bien.\n" in (
+        out.with_suffix(".srt").read_text("utf-8"))
+    assert "[00:00:04] Hablante 2: Bien.\n[00:00:06] Sin asignar.\n" in (
+        out.with_suffix(".txt").read_text("utf-8"))
+
+
+def test_speaker_at_picks_longest_overlap():
+    T = diarization.Turn
+    turns = [T(0, 3, 1), T(2.5, 6, 2), T(10, 12, 1)]
+    assert diarization.speaker_at(turns, 0, 2) == 1
+    assert diarization.speaker_at(turns, 2, 5) == 2
+    assert diarization.speaker_at(turns, 6.5, 9) is None
+    assert diarization.speaker_at([], 0, 1) is None
 
 
 class FakeModel:
@@ -226,3 +255,30 @@ def test_power_helpers():
     assert disable_background_throttling() is (sys.platform == "win32")
     with KeepAwake():
         pass
+
+
+def test_job_labels_speakers(tmp_path, monkeypatch):
+    T = diarization.Turn
+    monkeypatch.setattr(diarization, "diarize",
+                        lambda path, emit, check_cancel: [T(0, 2.95, 1), T(3, 9, 2)])
+    wav = write_wav(tmp_path / "reunion.wav", speech_like(5))
+    _model, events = run_job(tmp_path, wav, diarize=True)
+    speakers = [d["speaker"] for k, d in events if k == "segment"]
+    assert speakers == [1, 1, 1, 2, 2]
+    out = next(d["output"] for k, d in events if k == "file_done")
+    text = out.read_text("utf-8")
+    assert "2 identificados" in text and "**Hablante 2:** frase 3" in text
+
+
+def test_job_continues_when_diarization_fails(tmp_path, monkeypatch):
+    def broken(path, emit, check_cancel):
+        raise RuntimeError("sin conexión")
+
+    monkeypatch.setattr(diarization, "diarize", broken)
+    wav = write_wav(tmp_path / "reunion.wav", speech_like(3))
+    _model, events = run_job(tmp_path, wav, diarize=True)
+    kinds = [k for k, _ in events]
+    assert "file_done" in kinds and "file_error" not in kinds
+    assert any("sin conexión" in d["text"] for k, d in events if k == "warning")
+    out = next(d["output"] for k, d in events if k == "file_done")
+    assert "Hablante" not in out.read_text("utf-8")

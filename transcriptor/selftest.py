@@ -4,7 +4,8 @@
 
 Verifica que todas las dependencias nativas (PyAV, CTranslate2, onnxruntime)
 están empaquetadas y funcionan. Con --model también descarga el modelo y
-transcribe un audio sintético de principio a fin.
+transcribe un audio sintético de principio a fin, y descarga y ejecuta el
+programa de identificación de hablantes.
 """
 
 from __future__ import annotations
@@ -137,6 +138,14 @@ def run_self_test(argv: list[str]) -> int:
                 return f"{out.name} ({out.stat().st_size} bytes) {' '.join(warnings)}".strip()
 
             check(f"transcripción con modelo {model}", transcribe)
+
+            from transcriptor import diarization
+            if diarization.supported():
+                def speakers():
+                    turns = diarization.diarize(wav, lambda *_a, **_kw: None, lambda: None)
+                    return f"nemo-speech {diarization.RUNTIME_VERSION}: {len(turns)} tramos"
+
+                check("identificación de hablantes", speakers)
 
     text = "\n".join(lines) + f"\n\nRESULTADO: {'OK' if ok else 'FALLO'}\n"
     print(text)

@@ -11,10 +11,10 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, font as tkfont, messagebox, ttk
 
-from . import APP_NAME, __version__, updater
+from . import APP_NAME, __version__, diarization, updater
 from .audio import AUDIO_EXTENSIONS, MEDIA_EXTENSIONS, VIDEO_EXTENSIONS
 from .engine import DEFAULT_DEVICE, DEVICES, LANGUAGES, MODELS, Options, TranscriptionJob
-from .markdown import format_timestamp
+from .markdown import format_timestamp, speaker_label
 from .paths import downloads_dir, load_settings, open_in_explorer, save_settings
 
 log = logging.getLogger(__name__)
@@ -161,6 +161,7 @@ class App:
             value=self._label_for(DEVICES, saved_device, DEFAULT_DEVICE))
         self.timestamps_var = tk.BooleanVar(value=s.get("timestamps", True))
         self.vad_var = tk.BooleanVar(value=s.get("vad", True))
+        self.diarize_var = tk.BooleanVar(value=s.get("diarize", False))
 
         self.inputs: list[tk.Widget] = []
         rows = [
@@ -182,10 +183,18 @@ class App:
                              variable=self.vad_var)
         c2.pack(side="left", padx=(20, 0))
         self.inputs += [c1, c2]
-        ttk.Label(
-            opts, style="Hint.TLabel",
-            text="El modelo se descarga automáticamente la primera vez que se usa.",
-        ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        hint = "El modelo se descarga automáticamente la primera vez que se usa."
+        if diarization.supported():
+            c3 = ttk.Checkbutton(
+                opts, variable=self.diarize_var,
+                text="Identificar hablantes (experimental, hasta 8 personas)")
+            c3.grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
+            self.inputs.append(c3)
+            hint += " Identificar hablantes descarga otros ~110 MB."
+        else:
+            self.diarize_var.set(False)
+        ttk.Label(opts, style="Hint.TLabel", text=hint).grid(
+            row=5, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
         dest = ttk.Frame(main)
         dest.grid(row=3, column=0, sticky="ew", pady=(6, 4))
@@ -346,6 +355,7 @@ class App:
             device=self._key_for(DEVICES, self.device_var.get()),
             timestamps=self.timestamps_var.get(),
             vad=self.vad_var.get(),
+            diarize=self.diarize_var.get(),
         )
 
     def _start(self) -> None:
@@ -358,7 +368,8 @@ class App:
         options = self._current_options()
         self.settings.update(model=options.model, language=options.language,
                              device=options.device, timestamps=options.timestamps,
-                             vad=options.vad, device_choices=[d[0] for d in DEVICES])
+                             vad=options.vad, diarize=options.diarize,
+                             device_choices=[d[0] for d in DEVICES])
         save_settings(self.settings)
 
         self.outputs.clear()
@@ -469,11 +480,14 @@ class App:
                 parts.append(f"Velocidad ×{position / elapsed:.1f}")
         self.lbl_times.configure(text="   ·   ".join(parts))
 
-    def _on_segment(self, start: float, end: float, text: str) -> None:
+    def _on_segment(self, start: float, end: float, text: str,
+                    speaker: int | None = None) -> None:
         if not text:
             return
         self.preview.configure(state="normal")
         self.preview.insert("end", f"[{format_timestamp(start)}] ", "ts")
+        if speaker:
+            self.preview.insert("end", f"{speaker_label(speaker)}: ", "ts")
         self.preview.insert("end", text + "\n")
         self._trim_preview()
         self.preview.configure(state="disabled")

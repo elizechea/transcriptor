@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from . import audio
+from . import audio, diarization
 from .markdown import MarkdownWriter, format_timestamp
 from .mlx_backend import MLX_REPOS, MlxWhisperModel, require_metal
 from .paths import models_dir, output_path_for
@@ -89,6 +89,7 @@ class Options:
     timestamps: bool = True
     vad: bool = True
     beam_size: int = 5
+    diarize: bool = False
 
 
 Emit = Callable[..., None]
@@ -264,6 +265,12 @@ class TranscriptionJob:
         self.emit("progress", fraction=0.0 if duration else None, position=0.0,
                   duration=duration)
 
+        turns = self._diarize(path) if opts.diarize else None
+        speakers = None
+        if turns is not None:
+            count = len({t.speaker for t in turns})
+            speakers = (f"{count} identificado{'s' if count != 1 else ''} con NVIDIA "
+                        "Nemotron 3 Diarization (experimental)")
         output = output_path_for(path, self.out_dir)
         writer = MarkdownWriter(output, timestamps=opts.timestamps)
         language = opts.language
@@ -305,14 +312,17 @@ class TranscriptionJob:
                     else:
                         label = LANGUAGE_NAMES.get(language, language)
                     writer.open(source=path, duration=duration, language=label,
-                                model=opts.model, engine=engine)
+                                model=opts.model, engine=engine, speakers=speakers)
                 for segment in segments:
                     self._check_cancel()
                     start = chunk.offset + segment.start
                     end = chunk.offset + segment.end
-                    writer.add_segment(start, end, segment.text)
+                    speaker = (diarization.speaker_at(turns, start, end)
+                               if turns else None)
+                    writer.add_segment(start, end, segment.text, speaker)
                     position = end
-                    self.emit("segment", start=start, end=end, text=segment.text.strip())
+                    self.emit("segment", start=start, end=end, text=segment.text.strip(),
+                              speaker=speaker)
                     self._emit_progress(position, duration)
                 position = chunk.offset + chunk.duration
                 self._emit_progress(position, duration)
@@ -338,6 +348,18 @@ class TranscriptionJob:
                         model=opts.model, engine=engine)
             writer.close(note)
         return output
+
+    def _diarize(self, path: Path) -> list[diarization.Turn] | None:
+        try:
+            return diarization.diarize(path, self.emit, self._check_cancel)
+        except Cancelled:
+            raise
+        except Exception as exc:
+            log.exception("Error identificando hablantes en %s", path)
+            self.emit("warning", text=(
+                "No se pudo identificar a los hablantes; se transcribe sin ellos.\n\n"
+                f"Detalle: {exc}"))
+            return None
 
     def _check_cancel(self) -> None:
         if self.cancel_event.is_set():

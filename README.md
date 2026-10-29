@@ -101,6 +101,22 @@ memoria usada no depende de la duración del archivo, y el `.md` se va escribien
 en disco párrafo a párrafo: si cancelas (o algo falla) se conserva lo transcrito
 hasta ese momento, con una nota indicando dónde se detuvo.
 
+### Identificar hablantes (experimental)
+
+Con la casilla **Identificar hablantes** cada párrafo indica quién habla
+(«Hablante 1», «Hablante 2»…, hasta 8 personas) en el `.md`, el `.srt` y el `.txt`.
+Usa el modelo [NVIDIA Nemotron 3 Diarization](https://huggingface.co/nvidia/Nemotron-3-Diarization)
+(licencia OpenMDW, uso comercial permitido) con
+[NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) (Apache 2.0). Ninguno
+va dentro de la app: la primera vez que se activa se descargan ~110 MB en la carpeta
+de modelos y se comprueba su huella SHA-256.
+
+Es rápido (en un Mac M, unas 3 horas de audio en ~30 s con la GPU y ~2 min con la
+CPU), pero usa algo más de 1 GB de memoria por hora de audio. El hablante se asigna
+a cada frase de Whisper, así que en una frase en la que hablan dos personas aparece
+solo la que habla más tiempo. Si la identificación falla, el archivo se transcribe
+igualmente sin hablantes. En macOS necesita la versión 13.3 o posterior.
+
 ### Rendimiento en segundo plano
 
 Windows 11 frena los programas cuya ventana no está activa (limitación de energía
@@ -122,15 +138,16 @@ ralentice. Mientras transcribe, el equipo tampoco entra en reposo por inactivida
 | **Duración** | 01:02:15 |
 | **Idioma** | Español (detectado, 98%) |
 | **Modelo** | faster-whisper `small` |
+| **Hablantes** | 2 identificados con NVIDIA Nemotron 3 Diarization (experimental) |
 
 ---
 
-**[00:00:00]** Buenos días a todos, gracias por venir. Vamos a repasar…
+**[00:00:00]** **Hablante 1:** Buenos días a todos, gracias por venir. Vamos a repasar…
 
-**[00:00:42]** Ahora paso la palabra a Marta…
+**[00:00:42]** **Hablante 2:** Gracias. Empiezo por las ventas…
 ```
 
-Las marcas de tiempo por párrafo son opcionales.
+Las marcas de tiempo por párrafo y los hablantes son opcionales.
 
 ### Mac con chip M
 
@@ -226,6 +243,7 @@ Autotest del ejecutable (lo usa la CI): `Transcriptor.exe --self-test [--model t
 - `transcriptor/engine.py` — descarga/carga del modelo y transcripción en segundo plano.
 - `transcriptor/audio.py` — decodificación en streaming y troceado por silencios (PyAV).
 - `transcriptor/markdown.py` — escritura incremental del `.md`, `.srt` y `.txt`.
+- `transcriptor/diarization.py` — identificación de hablantes con NeMo-Speech.cpp.
 - `transcriptor/paths.py` — carpeta Descargas real de Windows, ajustes y registros.
 - `transcriptor/updater.py` — comprobación, descarga e instalación de nuevas versiones.
 - `transcriptor/power.py` — evita la limitación en segundo plano y el reposo.
