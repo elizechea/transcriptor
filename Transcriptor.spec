@@ -7,7 +7,7 @@ import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 IS_MAC = sys.platform == "darwin"
 IS_WIN = sys.platform == "win32"
 
