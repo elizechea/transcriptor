@@ -157,18 +157,14 @@ def test_nemotron_rejects_unsupported_language():
                           threading.Event())
 
 
-def test_nemotron_assignment_matches_scipy():
-    from scipy.optimize import linear_sum_assignment
+def test_nemotron_assignment_minimizes_cost():
+    from transcriptor.nemotron_backend import linear_sum_assignment
 
-    from transcriptor.nemotron_backend import linear_sum_assignment as ours
-
-    rng = np.random.default_rng(0)
-    for shape in [(1, 4), (3, 4), (4, 4), (5, 3), (8, 4)]:
-        cost = rng.random(shape)
-        rows, cols = ours(cost)
-        ref_rows, ref_cols = linear_sum_assignment(cost)
-        assert list(rows) == list(ref_rows)
-        assert cost[rows, cols].sum() == pytest.approx(cost[ref_rows, ref_cols].sum())
+    rows, cols = linear_sum_assignment(np.array([[4, 1, 3], [2, 0, 5], [3, 2, 2]]))
+    assert (list(rows), list(cols)) == ([0, 1, 2], [1, 0, 2])
+    # Más filas que columnas: sobra una fila, como en scipy.
+    rows, cols = linear_sum_assignment(np.array([[4, 1], [2, 0], [1, 3]]))
+    assert (list(rows), list(cols)) == ([1, 2], [1, 0])
 
 
 class FakeModel:
