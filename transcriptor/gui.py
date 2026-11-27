@@ -450,10 +450,10 @@ class App:
         self.listbox.selection_set(index)
         self.listbox.see(index)
 
-    def _on_language(self, code: str, probability: float) -> None:
+    def _on_language(self, code: str, probability: float | None) -> None:
         from .engine import LANGUAGE_NAMES
-        self._append_info(f"Idioma detectado: {LANGUAGE_NAMES.get(code, code)} "
-                          f"({probability:.0%})")
+        self._append_info(f"Idioma detectado: {LANGUAGE_NAMES.get(code, code)}"
+                          + (f" ({probability:.0%})" if probability is not None else ""))
 
     def _on_progress(self, fraction: float | None, position: float,
                      duration: float | None) -> None:

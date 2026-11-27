@@ -92,6 +92,8 @@ funciona sin conexión.
 | medium | 1,5 GB | Más preciso y lento |
 | large-v3-turbo | 1,6 GB | Muy preciso; ideal con GPU |
 | large-v3 | 3,1 GB | Máxima precisión |
+| whistle | 18 MB | [Cactus Whistle](https://huggingface.co/Cactus-Compute/whistle) (Apache 2.0): solo CPU, cientos de veces más rápido que el tiempo real; solo español, inglés, francés, italiano, alemán, neerlandés y polaco |
+| nemotron | 22 GB | [NVIDIA Nemotron 3.5 Transcribe](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B) (OpenMDW-1.1), versión NVFP4 con [mlx-audio](https://github.com/Blaizzy/mlx-audio): el más preciso; solo Mac con 32 GB de memoria, siempre en la GPU; no transcribe gallego, catalán ni euskera |
 
 ### Archivos grandes
 

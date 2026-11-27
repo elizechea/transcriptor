@@ -2,7 +2,11 @@ faster-whisper==1.2.1
 # PyAV 19 eliminó av.open(metadata_errors=…), que usan faster-whisper y audio.py.
 av==18.1.0
 # Certificados HTTPS para buscar actualizaciones (updater.py).
-certifi==2026.07.22
+certifi==2026.10.23
+# Modelo Whistle; el motor nativo y los pesos se descargan al usarlo (cactus_backend.py).
+cactus-compute==4.1.0
 windnd==1.0.7; sys_platform == "win32"
 mlx==0.32.4; sys_platform == "darwin"
 mlx-whisper==0.4.3; sys_platform == "darwin"
+# Modelo Nemotron 3.5 Transcribe; los pesos (22 GB) se descargan al usarlo (nemotron_backend.py).
+mlx-audio==0.6.8; sys_platform == "darwin"

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from transcriptor import audio, diarization, engine
+from transcriptor import audio, cactus_backend, diarization, engine
 from transcriptor.markdown import MarkdownWriter, format_timestamp
 from transcriptor.paths import output_path_for
 
@@ -131,6 +131,30 @@ def test_speaker_at_picks_longest_overlap():
     assert diarization.speaker_at(turns, 2, 5) == 2
     assert diarization.speaker_at(turns, 6.5, 9) is None
     assert diarization.speaker_at([], 0, 1) is None
+
+
+def test_whistle_words_grouped_into_sentences():
+    def w(word, start, end):
+        return {"word": word, "start": start, "end": end, "probability": 1.0}
+
+    segs = cactus_backend._sentences([
+        w("Hola,", 0.0, 0.4), w("qué", 0.5, 0.7), w("tal?", 0.7, 1.0),
+        w("Bien", 1.2, 1.5), w("gracias", 3.0, 3.5), w("vale", 3.6, 4.0)])
+    assert [(s.start, s.end, s.text) for s in segs] == [
+        (0.0, 1.0, " Hola, qué tal?"), (1.2, 1.5, " Bien"), (3.0, 4.0, " gracias vale")]
+    assert cactus_backend._sentences([]) == []
+
+
+def test_whistle_rejects_unsupported_language():
+    with pytest.raises(RuntimeError, match="gallego"):
+        engine.load_model(engine.Options(model="whistle", language="gl"), lambda *a, **k: None,
+                          threading.Event())
+
+
+def test_nemotron_rejects_unsupported_language():
+    with pytest.raises(RuntimeError, match="gallego"):
+        engine.load_model(engine.Options(model="nemotron", language="gl"), lambda *a, **k: None,
+                          threading.Event())
 
 
 class FakeModel:

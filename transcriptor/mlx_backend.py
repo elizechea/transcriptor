@@ -48,7 +48,7 @@ class Segment:
 @dataclass
 class Info:
     language: str
-    language_probability: float
+    language_probability: float | None
 
 
 def require_metal() -> str:

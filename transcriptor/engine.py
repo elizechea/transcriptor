@@ -17,8 +17,11 @@ from pathlib import Path
 from typing import Callable
 
 from . import audio, diarization
+from .cactus_backend import WHISTLE_LANGUAGES, WhistleModel, ensure_whistle
 from .markdown import MarkdownWriter, format_timestamp
 from .mlx_backend import MLX_REPOS, MlxWhisperModel, require_metal
+from .nemotron_backend import (NEMOTRON_REPO, NEMOTRON_UNSUPPORTED, NemotronModel,
+                               check_memory)
 from .paths import models_dir, output_path_for
 from .power import KeepAwake
 
@@ -32,7 +35,11 @@ MODELS = [
     ("medium", "Medium — preciso, lento", 1_530_000_000),
     ("large-v3-turbo", "Large v3 Turbo — muy preciso, velocidad media", 1_620_000_000),
     ("large-v3", "Large v3 — máxima precisión, muy lento en CPU", 3_090_000_000),
+    ("whistle", "Whistle (Cactus) — diminuto y rapidísimo, solo 7 idiomas", 18_000_000),
 ]
+if sys.platform == "darwin":
+    MODELS.append(("nemotron", "Nemotron 3.5 (NVIDIA) — el más preciso, 22 GB, "
+                   "Mac con 32 GB de memoria", 21_577_000_000))
 MODEL_REPOS = {
     "tiny": "Systran/faster-whisper-tiny",
     "base": "Systran/faster-whisper-base",
@@ -113,7 +120,7 @@ def ensure_model(name: str, emit: Emit, cancel_event: threading.Event,
     """Devuelve la ruta local del modelo, descargándolo si hace falta."""
     if device == "mlx":
         from huggingface_hub import snapshot_download as download_model
-        repo = MLX_REPOS.get(name, name)
+        repo = NEMOTRON_REPO if name == "nemotron" else MLX_REPOS.get(name, name)
     else:
         from faster_whisper.utils import download_model
         repo = MODEL_REPOS.get(name, name)
@@ -153,6 +160,12 @@ def ensure_model(name: str, emit: Emit, cancel_event: threading.Event,
 
 def load_model(options: Options, emit: Emit, cancel_event: threading.Event):
     from faster_whisper import WhisperModel
+
+    if options.model == "whistle":
+        return _load_whistle(options, emit), "cpu"
+    if options.model == "nemotron":
+        # Solo corre en Metal: no hay CPU a la que volver si la GPU falla.
+        return _load_nemotron(options, emit, cancel_event), "nemotron"
 
     key = (options.model, options.device)
     if key in _model_cache:
@@ -198,6 +211,38 @@ def load_model(options: Options, emit: Emit, cancel_event: threading.Event):
         )
     _model_cache[(options.model, device)] = model
     return model, device
+
+
+def _load_whistle(options: Options, emit: Emit) -> WhistleModel:
+    """Whistle solo usa la CPU: el dispositivo elegido no cuenta."""
+    if options.language and options.language not in WHISTLE_LANGUAGES:
+        name = LANGUAGE_NAMES.get(options.language, options.language)
+        raise RuntimeError(f"El modelo Whistle no transcribe {name.lower()}. "
+                           "Elige otro modelo u otro idioma.")
+    key = ("whistle", "cpu")
+    if key not in _model_cache:
+        lib, weights = ensure_whistle(emit)
+        emit("status", text="Cargando el modelo «whistle»…")
+        _model_cache[key] = WhistleModel(lib, weights)
+    return _model_cache[key]
+
+
+def _load_nemotron(options: Options, emit: Emit,
+                   cancel_event: threading.Event) -> NemotronModel:
+    """Nemotron solo usa la GPU del Mac: el dispositivo elegido no cuenta."""
+    if options.language in NEMOTRON_UNSUPPORTED:
+        name = LANGUAGE_NAMES[options.language]
+        raise RuntimeError(f"El modelo Nemotron no transcribe {name.lower()}. "
+                           "Elige otro modelo u otro idioma.")
+    key = ("nemotron", "mlx")
+    if key not in _model_cache:
+        check_memory()
+        require_metal()
+        path = ensure_model("nemotron", emit, cancel_event, "mlx")
+        emit("status", text="Cargando el modelo «nemotron»…")
+        emit("download", done=0, total=0)  # barra indeterminada mientras carga
+        _model_cache[key] = NemotronModel(path)
+    return _model_cache[key]
 
 
 class TranscriptionJob:
@@ -279,9 +324,11 @@ class TranscriptionJob:
         note = None
         # MLX entrega los segmentos al terminar cada bloque (mientras tanto solo
         # informa del avance): con bloques más cortos el texto aparece antes.
-        batched = isinstance(model, MlxWhisperModel)
+        batched = isinstance(model, (MlxWhisperModel, NemotronModel))
         chunk_seconds = 5 * 60 if batched else 20 * 60
-        engine = "mlx-whisper" if batched else "faster-whisper"
+        engine = ("mlx-whisper" if isinstance(model, MlxWhisperModel) else
+                  "mlx-audio" if batched else
+                  "Cactus" if isinstance(model, WhistleModel) else "faster-whisper")
         try:
             self.emit("status", text="Leyendo audio…")
             for chunk in audio.iter_audio_chunks(path, chunk_seconds=chunk_seconds,
@@ -303,10 +350,14 @@ class TranscriptionJob:
                     **extra,
                 )
                 if not writer.is_open:
-                    if language is None:
+                    if language is None and info.language is None:
+                        label = "automático"  # Nemotron no dice qué idioma oye
+                    elif language is None:
                         language = info.language
-                        label = (f"{LANGUAGE_NAMES.get(language, language)} "
-                                 f"(detectado, {info.language_probability:.0%})")
+                        probability = info.language_probability
+                        label = (f"{LANGUAGE_NAMES.get(language, language)} (detectado"
+                                 + (f", {probability:.0%})" if probability is not None
+                                    else ")"))
                         self.emit("language", code=language,
                                   probability=info.language_probability)
                     else:

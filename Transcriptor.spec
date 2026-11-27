@@ -21,6 +21,11 @@ if IS_MAC:
     datas += collect_data_files("mlx", includes=["lib/*.metallib"])
     datas += collect_data_files("mlx_whisper")
     hiddenimports = collect_submodules("mlx")
+    # mlx-audio carga cada modelo por su nombre con importlib y los descubre
+    # listando sus carpetas: sin la del modelo en disco, no lo encuentra.
+    hiddenimports += collect_submodules("mlx_audio.stt.models.nemotron_transcribe")
+    datas += collect_data_files("mlx_audio", include_py_files=True,
+                                includes=["stt/models/nemotron_transcribe/*.py"])
     # numba/llvmlite y scipy solo sirven para marcas por palabra (ver mlx_backend).
     excludes = ["numba", "llvmlite", "scipy"]
 else:
@@ -33,7 +38,8 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=["transcriptor.selftest"] + hiddenimports,
-    excludes=["torch", "tensorflow", "matplotlib", "IPython", "pytest"] + excludes,
+    # PIL: dependencia de cactus-compute solo para imágenes (Mirage), que no se usa.
+    excludes=["torch", "tensorflow", "matplotlib", "IPython", "pytest", "PIL"] + excludes,
     noarchive=False,
 )
 pyz = PYZ(a.pure)
