@@ -11,6 +11,9 @@ Expone la misma interfaz que `faster_whisper.WhisperModel.transcribe`.
 from __future__ import annotations
 
 import os
+import sys
+import types
+from itertools import permutations
 from typing import Callable
 
 import numpy as np
@@ -31,8 +34,36 @@ def check_memory() -> None:
             f"{total / 1024**3:.0f} GB. Elige otro modelo.")
 
 
+def linear_sum_assignment(cost: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Asignación de coste mínimo, como la de scipy.optimize, por fuerza bruta.
+
+    mlx-audio la usa para casar las etiquetas de hablante del texto (como mucho 8)
+    con los hablantes del audio; scipy no va en la app (ver Transcriptor.spec).
+    """
+    cost = np.asarray(cost)
+    if cost.shape[0] > cost.shape[1]:
+        cols, rows = linear_sum_assignment(cost.T)
+        order = np.argsort(rows)
+        return rows[order], cols[order]
+    rows = np.arange(cost.shape[0])
+    best = min(permutations(range(cost.shape[1]), len(rows)),
+               key=lambda cols: cost[rows, list(cols)].sum())
+    return rows, np.array(best, dtype=int)
+
+
+def _without_scipy() -> None:
+    try:
+        import scipy.optimize  # noqa: F401
+    except ImportError:
+        stub = types.ModuleType("scipy.optimize")
+        stub.linear_sum_assignment = linear_sum_assignment
+        # Sin módulo «scipy» falso: transformers lo detectaría como instalado.
+        sys.modules["scipy.optimize"] = stub
+
+
 class NemotronModel:
     def __init__(self, path: str):
+        _without_scipy()
         from mlx_audio.stt import load
 
         self._model = load(path, strict=True)
